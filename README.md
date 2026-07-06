@@ -1,0 +1,152 @@
+# MeasureGrid
+
+[日本語版 README はこちら](README.ja.md)
+
+A lightweight, generic React spreadsheet component. React is the only dependency (~5KB gzipped).
+
+- **Grid display** — toggleable row numbers and header, per-column widths, drag-to-resize columns, virtualized rows (smooth with tens of thousands of rows)
+- **Cell types** — text / number (normalizes full-width digits and commas) / select (dropdown backed by master data, stores codes while displaying labels) / date (calendar input, normalizes pasted dates in common Japanese formats)
+- **Cell editing** — start editing by double-click, F2, or just typing. **Full IME support**: with a Japanese IME on, pressing "A" opens the editor and types 「あ」 right into the cell
+- **Range selection** — mouse drag, extend with Shift+click / Shift+arrows, add multiple ranges with Ctrl(⌘)+click. Click row/column headers to select whole rows/columns, the top-left corner to select all
+- **Copy & paste** — Ctrl(⌘)+C / X / V. TSV format interoperable with Excel and Google Sheets (handles cells containing newlines, tabs and quotes; tiles single-cell paste across a selection)
+
+## Installation
+
+```sh
+npm install react-measure-grid
+```
+
+## Usage
+
+```tsx
+import { useState } from 'react';
+import { MeasureGrid } from 'react-measure-grid';
+// CSS loads automatically when you import the library.
+// Depending on your bundler you may need: import 'react-measure-grid/styles.css';
+
+function App() {
+  const [data, setData] = useState<string[][]>([
+    ['Apple', '100', 'Fruit'],
+    ['Carrot', '80', 'Vegetable'],
+  ]);
+
+  return (
+    <MeasureGrid
+      data={data}
+      onChange={setData}
+      columns={[
+        { title: 'Name', width: 160 },
+        { title: 'Price', width: 80 },
+        { title: 'Category', width: 120, readOnly: true },
+      ]}
+      showRowNumbers
+      style={{ height: 400 }}
+    />
+  );
+}
+```
+
+When `columns` is omitted, the column count is derived from `data` and headers show spreadsheet-style letters (A, B, C, …).
+
+## Props
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `data` | `string[][]` | (required) | Grid contents. Rows may be ragged |
+| `columns` | `ColumnDef[]` | — | Array of `{ title?, width?, readOnly?, resizable?, type?, options?, strict? }`. When omitted, the column count is derived from data |
+| `onChange` | `(next: string[][]) => void` | — | Called with a new 2D array on every edit / paste / delete |
+| `onCellChange` | `(row, col, value) => void` | — | Called once per changed cell. Use instead of (or with) `onChange` |
+| `onSelectionChange` | `(ranges: NormalizedRange[]) => void` | — | Called when the selection changes (array of `{top,left,bottom,right}`) |
+| `onColumnResize` | `(col, width) => void` | — | Called when a column resize drag finishes (final width in px) |
+| `showRowNumbers` | `boolean` | `true` | Show the row-number column |
+| `showHeader` | `boolean` | `true` | Show the header row |
+| `readOnly` | `boolean` | `false` | Disallow editing (selection & copy still work) |
+| `resizableColumns` | `boolean` | `true` | Resize columns by dragging header edges. Override per column with `ColumnDef.resizable` (requires `showHeader`) |
+| `rowHeight` | `number` | `28` | Row height (px) |
+| `headerHeight` | `number` | `28` | Header height (px) |
+| `defaultColumnWidth` | `number` | `120` | Width of columns without an explicit width (px) |
+| `rowNumberWidth` | `number` | `48` | Width of the row-number column (px) |
+| `className` / `style` | — | — | Applied to the root element. Set the height via `style` or CSS (default 420px) |
+
+The data is fully **controlled**: the grid never changes unless you implement `onChange`.
+
+Column widths are the one uncontrolled exception — widths set by dragging are kept inside the component (taking precedence over `ColumnDef.width`). Persist them via `onColumnResize` if needed.
+
+## Cell types
+
+Set `ColumnDef.type` to choose a cell type per column. **Data stays plain strings**; the type controls the editor UI, input normalization and display (this keeps clipboard interop simple).
+
+```tsx
+const columns: ColumnDef[] = [
+  { title: 'Product' },                                   // text (default)
+  { title: 'Price', type: 'number' },
+  { title: 'Category', type: 'select', options: [
+    { value: 'C01', label: 'Fruit' },                     // stores the code, displays the label
+    { value: 'C02', label: 'Produce' },
+  ]},
+  { title: 'Status', type: 'select', options: ['In stock', 'Backorder'] }, // plain strings work too
+  { title: 'Arrival', type: 'date' },
+];
+```
+
+| Type | Editor | Behavior |
+| --- | --- | --- |
+| `text` | Text (IME-aware) | Default; free text |
+| `number` | Text (IME-aware) | Right-aligned. On commit, full-width digits are converted and thousands separators removed. Non-numeric input is **rejected** (the cell keeps its old value) |
+| `select` | Filtering dropdown | ↑↓ to move, Enter/click to commit, type to filter. Alt+↓ also opens it. `options` accepts `string` or `{value, label}` (stores value, displays label). Values outside the options are rejected by default (`strict: false` allows free input) |
+| `date` | Native date picker | Stored as `YYYY-MM-DD`. Pasted text such as `2026/7/6`, `2026年7月6日`, `20260706` and full-width digits is normalized. Invalid dates are rejected. Alt+↓ opens the calendar |
+
+Normalization and validation apply to **both edit commits and paste**. Cells with invalid values are skipped and keep their old value. The normalizers are exported as `normalizeNumberInput` / `normalizeDateInput` for reuse in your own validation.
+
+## Keyboard
+
+| Key | Action |
+| --- | --- |
+| Arrows / Tab / Enter | Move between cells (Shift reverses / extends the range) |
+| PageUp / PageDown | Move by a page |
+| Home / End | Start / end of row (Ctrl+Home/End: first / last cell) |
+| Any printable key | Start editing with that character (IME-aware) |
+| F2 / double-click | Start editing, keeping the current value |
+| Enter / Tab | Commit and move; Esc cancels; Alt+Enter inserts a newline in the cell |
+| Delete / Backspace | Clear selected cells |
+| Ctrl(⌘)+A | Select all |
+| Ctrl(⌘)+C / X / V | Copy / cut / paste |
+
+## Styling
+
+Override CSS variables to theme the grid.
+
+```css
+.my-grid {
+  --measure-grid-accent: #0f9d58;
+  --measure-grid-sel-bg: rgba(15, 157, 88, 0.12);
+  --measure-grid-header-bg: #f0f4f1;
+}
+```
+
+See the top of [src/measure-grid.css](src/measure-grid.css) for the full list of variables.
+
+## How IME support works
+
+The grid keeps an invisible, always-focused `<textarea>` positioned over the active cell (the same technique as Google Sheets). Editing starts on `compositionstart`, so the IME candidate window appears at the cell, and the Enter that confirms a composition is never misinterpreted as cell navigation (including Safari's different event ordering).
+
+## Development
+
+```sh
+npm install
+npm run dev        # demo app (http://localhost:5173)
+npm test           # unit tests (vitest)
+npm run typecheck  # type check
+npm run build      # library build into dist/ (ESM + CJS + d.ts + CSS)
+```
+
+## Limitations (current version)
+
+- Internal data is always strings (numbers/dates included; display formatting such as thousands separators is future work)
+- Columns are not virtualized — mind performance beyond a few hundred columns
+- No undo / redo (the `onChange`-based design lets the host app manage history)
+- No merged cells, formulas, or double-click auto-fit for column widths
+
+## License
+
+MIT

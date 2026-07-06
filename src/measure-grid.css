@@ -1,0 +1,243 @@
+.measure-grid {
+  --measure-grid-border: #d5dae1;
+  --measure-grid-header-bg: #f5f6f8;
+  --measure-grid-header-fg: #55606e;
+  --measure-grid-header-sel-bg: #e2ebf8;
+  --measure-grid-cell-bg: #ffffff;
+  --measure-grid-cell-fg: #1d232b;
+  --measure-grid-readonly-fg: #8a93a0;
+  --measure-grid-sel-bg: rgba(29, 112, 214, 0.12);
+  --measure-grid-accent: #1d70d6;
+
+  position: relative;
+  overflow: auto;
+  /* Defensive: the grid virtualizes rows and manages scroll itself, so
+     browser scroll anchoring must not react to its layout changes. */
+  overflow-anchor: none;
+  height: 420px;
+  border: 1px solid var(--measure-grid-border);
+  background: var(--measure-grid-cell-bg);
+  color: var(--measure-grid-cell-fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans",
+    "Noto Sans JP", Meiryo, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  user-select: none;
+  -webkit-user-select: none;
+  box-sizing: border-box;
+}
+
+.measure-grid *,
+.measure-grid *::before,
+.measure-grid *::after {
+  box-sizing: border-box;
+}
+
+.measure-grid:focus-within {
+  border-color: var(--measure-grid-accent);
+}
+
+/* ----- header ----- */
+
+.measure-grid-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  background: var(--measure-grid-header-bg);
+}
+
+.measure-grid-hcell,
+.measure-grid-corner {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid var(--measure-grid-border);
+  border-bottom: 1px solid var(--measure-grid-border);
+  background: var(--measure-grid-header-bg);
+  color: var(--measure-grid-header-fg);
+  font-weight: 500;
+  cursor: default;
+}
+
+.measure-grid-hcell {
+  position: relative;
+}
+
+.measure-grid-hcell-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Resize grab zone straddling the column border. */
+.measure-grid-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -5px;
+  width: 10px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 1;
+}
+
+.measure-grid-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 2px;
+  background: transparent;
+}
+
+.measure-grid-resize-handle:hover::after,
+.measure-grid-resize-handle--active::after {
+  background: var(--measure-grid-accent);
+}
+
+.measure-grid--resizing,
+.measure-grid--resizing .measure-grid-cell,
+.measure-grid--resizing .measure-grid-hcell {
+  cursor: col-resize;
+}
+
+.measure-grid-corner {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+}
+
+.measure-grid-hcell--sel {
+  background: var(--measure-grid-header-sel-bg);
+  color: var(--measure-grid-accent);
+}
+
+/* ----- body ----- */
+
+.measure-grid-body {
+  position: relative;
+}
+
+.measure-grid-row {
+  position: absolute;
+  left: 0;
+  display: flex;
+}
+
+.measure-grid-rownum {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid var(--measure-grid-border);
+  border-bottom: 1px solid var(--measure-grid-border);
+  background: var(--measure-grid-header-bg);
+  color: var(--measure-grid-header-fg);
+  cursor: default;
+}
+
+.measure-grid-rownum--sel {
+  background: var(--measure-grid-header-sel-bg);
+  color: var(--measure-grid-accent);
+}
+
+.measure-grid-cell {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  border-right: 1px solid var(--measure-grid-border);
+  border-bottom: 1px solid var(--measure-grid-border);
+  background: var(--measure-grid-cell-bg);
+  overflow: hidden;
+  white-space: pre;
+  cursor: cell;
+}
+
+.measure-grid-cell--readonly {
+  color: var(--measure-grid-readonly-fg);
+}
+
+.measure-grid-cell--sel {
+  background: var(--measure-grid-sel-bg);
+}
+
+.measure-grid-cell--active {
+  background: var(--measure-grid-cell-bg);
+  outline: 2px solid var(--measure-grid-accent);
+  outline-offset: -2px;
+}
+
+/* ----- editor (doubles as the hidden IME proxy) ----- */
+
+.measure-grid-editor {
+  position: absolute;
+  z-index: 2;
+  margin: 0;
+  padding: 2px 5px;
+  border: 2px solid var(--measure-grid-accent);
+  border-radius: 0;
+  background: var(--measure-grid-cell-bg);
+  color: inherit;
+  font: inherit;
+  resize: none;
+  overflow: hidden;
+  outline: none;
+}
+
+.measure-grid-editor--hidden {
+  opacity: 0;
+  pointer-events: none;
+  border: none;
+  padding: 0;
+}
+
+.measure-grid-editor--date {
+  padding: 0 4px;
+}
+
+/* ----- cell types ----- */
+
+.measure-grid-cell--num {
+  justify-content: flex-end;
+  font-variant-numeric: tabular-nums;
+}
+
+.measure-grid-cell--select {
+  position: relative;
+  padding-right: 18px;
+}
+
+.measure-grid-cell-arrow {
+  position: absolute;
+  right: 4px;
+  color: var(--measure-grid-readonly-fg);
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.measure-grid-dropdown {
+  position: absolute;
+  z-index: 5;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--measure-grid-cell-bg);
+  border: 1px solid var(--measure-grid-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
+}
+
+.measure-grid-option {
+  padding: 4px 8px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.measure-grid-option--hi {
+  background: var(--measure-grid-sel-bg);
+  color: var(--measure-grid-accent);
+}

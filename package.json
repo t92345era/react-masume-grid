@@ -1,0 +1,62 @@
+{
+  "name": "react-measure-grid",
+  "version": "0.1.0",
+  "description": "MeasureGrid — a lightweight React spreadsheet component with IME-friendly cell editing, cell types (text/number/select/date), range selection, and Excel-compatible clipboard support.",
+  "keywords": [
+    "react",
+    "spreadsheet",
+    "grid",
+    "datagrid",
+    "table",
+    "excel",
+    "ime",
+    "japanese"
+  ],
+  "license": "MIT",
+  "author": "t92345era",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/measure-grid.cjs",
+  "module": "./dist/measure-grid.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/measure-grid.js",
+      "require": "./dist/measure-grid.cjs"
+    },
+    "./styles.css": "./dist/measure-grid.css"
+  },
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run typecheck && npm run test && npm run build"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/react": "^16.3.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.5.0",
+    "jsdom": "^26.1.0",
+    "puppeteer-core": "^25.3.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "vite-plugin-dts": "^4.5.4",
+    "vitest": "^3.2.4"
+  }
+}
