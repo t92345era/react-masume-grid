@@ -1,10 +1,10 @@
-export { MeasureGrid } from './MeasureGrid';
+export { MasumeGrid } from './MasumeGrid';
 export type {
   CellPos,
   CellValue,
   ColumnDef,
   ColumnType,
-  MeasureGridProps,
+  MasumeGridProps,
   NormalizedRange,
   SelectOption,
 } from './types';

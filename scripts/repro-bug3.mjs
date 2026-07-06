@@ -1,6 +1,6 @@
 import puppeteer from 'puppeteer-core';
 
-const SCRATCH = '/private/tmp/claude-501/-Users-tera-Source-react-measure-grid/76a516fa-ae73-43a9-ab1a-6f7b996f4ca1/scratchpad';
+const SCRATCH = '/private/tmp/claude-501/-Users-tera-Source-react-masume-grid/76a516fa-ae73-43a9-ab1a-6f7b996f4ca1/scratchpad';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const browser = await puppeteer.launch({
@@ -10,11 +10,11 @@ const browser = await puppeteer.launch({
 const page = await browser.newPage();
 await page.setViewport({ width: 1000, height: 800 });
 await page.goto('http://localhost:5199', { waitUntil: 'networkidle0' });
-await page.waitForSelector('.measure-grid [data-row]');
+await page.waitForSelector('.masume-grid [data-row]');
 
 const state = async (label) => {
   const s = await page.evaluate(() => {
-    const el = document.querySelector('.measure-grid');
+    const el = document.querySelector('.masume-grid');
     const q = (sel) => {
       const n = document.querySelector(sel);
       if (!n) return null;
@@ -36,7 +36,7 @@ const state = async (label) => {
 };
 
 const shot = async (name) => {
-  const grid = await page.$('.measure-grid');
+  const grid = await page.$('.masume-grid');
   await grid.screenshot({ path: `${SCRATCH}/${name}.png` });
 };
 
@@ -57,7 +57,7 @@ await state('A2 after Cmd+Home:');
 await shot('bug3-A2-after-home');
 
 // --- Scenario B: scroll right by wheel, then toggle row numbers off/on ---
-const gridBox = await (await page.$('.measure-grid')).boundingBox();
+const gridBox = await (await page.$('.masume-grid')).boundingBox();
 await page.mouse.move(gridBox.x + 400, gridBox.y + 200);
 await page.mouse.wheel({ deltaX: 120 });
 await sleep(200);

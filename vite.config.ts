@@ -11,10 +11,10 @@ export default defineConfig({
   build: {
     lib: {
       entry: 'src/index.ts',
-      name: 'MeasureGrid',
+      name: 'MasumeGrid',
       formats: ['es', 'cjs'],
-      fileName: 'measure-grid',
-      cssFileName: 'measure-grid',
+      fileName: 'masume-grid',
+      cssFileName: 'masume-grid',
     },
     rollupOptions: {
       external: ['react', 'react-dom', 'react/jsx-runtime'],

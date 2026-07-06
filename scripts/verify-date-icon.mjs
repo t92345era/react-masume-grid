@@ -8,7 +8,7 @@ const browser = await puppeteer.launch({
 const page = await browser.newPage();
 await page.setViewport({ width: 1200, height: 800 });
 await page.goto('http://localhost:5199', { waitUntil: 'networkidle0' });
-await page.waitForSelector('.measure-grid [data-row]');
+await page.waitForSelector('.masume-grid [data-row]');
 
 const dblclick = async (el) => {
   const b = await el.boundingBox();

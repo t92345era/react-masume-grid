@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { MeasureGrid } from '../src';
+import { MasumeGrid } from '../src';
 
 beforeAll(() => {
   // jsdom lacks ResizeObserver
@@ -13,9 +13,9 @@ beforeAll(() => {
 
 const editor = () => screen.getByLabelText('cell editor') as HTMLTextAreaElement;
 
-describe('MeasureGrid', () => {
+describe('MasumeGrid', () => {
   it('renders alphabetical headers, row numbers and cell values', () => {
-    render(<MeasureGrid data={[['foo', 'bar']]} />);
+    render(<MasumeGrid data={[['foo', 'bar']]} />);
     expect(screen.getByText('A')).toBeTruthy();
     expect(screen.getByText('B')).toBeTruthy();
     expect(screen.getByText('1')).toBeTruthy(); // row number
@@ -24,27 +24,27 @@ describe('MeasureGrid', () => {
   });
 
   it('hides row numbers when showRowNumbers is false', () => {
-    render(<MeasureGrid data={[['xyz']]} showRowNumbers={false} />);
+    render(<MasumeGrid data={[['xyz']]} showRowNumbers={false} />);
     expect(screen.queryByText('1')).toBeNull();
   });
 
   it('uses column titles when provided', () => {
-    render(<MeasureGrid data={[['v']]} columns={[{ title: '商品名' }]} />);
+    render(<MasumeGrid data={[['v']]} columns={[{ title: '商品名' }]} />);
     expect(screen.getByText('商品名')).toBeTruthy();
   });
 
   it('starts editing with the current value on double-click', () => {
-    render(<MeasureGrid data={[['foo', 'bar']]} />);
+    render(<MasumeGrid data={[['foo', 'bar']]} />);
     const cell = screen.getByText('foo');
     fireEvent.mouseDown(cell);
     fireEvent.doubleClick(cell);
     expect(editor().value).toBe('foo');
-    expect(editor().className).not.toContain('measure-grid-editor--hidden');
+    expect(editor().className).not.toContain('masume-grid-editor--hidden');
   });
 
   it('starts editing on F2 and commits on Enter via onChange', () => {
     const onChange = vi.fn();
-    render(<MeasureGrid data={[['foo', 'bar']]} onChange={onChange} />);
+    render(<MasumeGrid data={[['foo', 'bar']]} onChange={onChange} />);
     const cell = screen.getByText('foo');
     fireEvent.mouseDown(cell);
     fireEvent.keyDown(editor(), { key: 'F2' });
@@ -55,38 +55,38 @@ describe('MeasureGrid', () => {
 
   it('cancels editing on Escape', () => {
     const onChange = vi.fn();
-    render(<MeasureGrid data={[['foo']]} onChange={onChange} />);
+    render(<MasumeGrid data={[['foo']]} onChange={onChange} />);
     const cell = screen.getByText('foo');
     fireEvent.mouseDown(cell);
     fireEvent.doubleClick(cell);
     fireEvent.change(editor(), { target: { value: 'nope' } });
     fireEvent.keyDown(editor(), { key: 'Escape' });
     expect(onChange).not.toHaveBeenCalled();
-    expect(editor().className).toContain('measure-grid-editor--hidden');
+    expect(editor().className).toContain('masume-grid-editor--hidden');
   });
 
   it('clears selected cells with Delete', () => {
     const onChange = vi.fn();
-    render(<MeasureGrid data={[['foo', 'bar']]} onChange={onChange} />);
+    render(<MasumeGrid data={[['foo', 'bar']]} onChange={onChange} />);
     fireEvent.mouseDown(screen.getByText('foo'));
     fireEvent.keyDown(editor(), { key: 'Delete' });
     expect(onChange).toHaveBeenCalledWith([['', 'bar']]);
   });
 
   it('does not edit when readOnly', () => {
-    render(<MeasureGrid data={[['foo']]} readOnly />);
+    render(<MasumeGrid data={[['foo']]} readOnly />);
     const cell = screen.getByText('foo');
     fireEvent.mouseDown(cell);
     fireEvent.doubleClick(cell);
-    expect(editor().className).toContain('measure-grid-editor--hidden');
+    expect(editor().className).toContain('masume-grid-editor--hidden');
   });
 
   it('resizes a column by dragging its header handle', () => {
     const onColumnResize = vi.fn();
     const { container } = render(
-      <MeasureGrid data={[['a', 'b']]} onColumnResize={onColumnResize} />,
+      <MasumeGrid data={[['a', 'b']]} onColumnResize={onColumnResize} />,
     );
-    const handle = container.querySelector('[data-hcol="0"] .measure-grid-resize-handle')!;
+    const handle = container.querySelector('[data-hcol="0"] .masume-grid-resize-handle')!;
     fireEvent.mouseDown(handle, { button: 0, clientX: 100 });
     fireEvent.mouseMove(window, { clientX: 140 });
     const hcell = container.querySelector('[data-hcol="0"]') as HTMLElement;
@@ -96,8 +96,8 @@ describe('MeasureGrid', () => {
   });
 
   it('clamps column resizing to the minimum width', () => {
-    const { container } = render(<MeasureGrid data={[['a']]} />);
-    const handle = container.querySelector('.measure-grid-resize-handle')!;
+    const { container } = render(<MasumeGrid data={[['a']]} />);
+    const handle = container.querySelector('.masume-grid-resize-handle')!;
     fireEvent.mouseDown(handle, { button: 0, clientX: 100 });
     fireEvent.mouseMove(window, { clientX: -500 });
     fireEvent.mouseUp(window, { clientX: -500 });
@@ -107,27 +107,27 @@ describe('MeasureGrid', () => {
 
   it('renders no resize handles when resizableColumns is false', () => {
     const { container } = render(
-      <MeasureGrid data={[['a', 'b']]} resizableColumns={false} />,
+      <MasumeGrid data={[['a', 'b']]} resizableColumns={false} />,
     );
-    expect(container.querySelector('.measure-grid-resize-handle')).toBeNull();
+    expect(container.querySelector('.masume-grid-resize-handle')).toBeNull();
   });
 
   it('honors per-column resizable overrides', () => {
     const { container } = render(
-      <MeasureGrid
+      <MasumeGrid
         data={[['a', 'b']]}
         resizableColumns={false}
         columns={[{ title: 'X' }, { title: 'Y', resizable: true }]}
       />,
     );
-    expect(container.querySelector('[data-hcol="0"] .measure-grid-resize-handle')).toBeNull();
-    expect(container.querySelector('[data-hcol="1"] .measure-grid-resize-handle')).not.toBeNull();
+    expect(container.querySelector('[data-hcol="0"] .masume-grid-resize-handle')).toBeNull();
+    expect(container.querySelector('[data-hcol="1"] .masume-grid-resize-handle')).not.toBeNull();
   });
 
   it('normalizes number-cell input on commit and rejects invalid values', () => {
     const onChange = vi.fn();
     render(
-      <MeasureGrid data={[['100']]} columns={[{ title: 'N', type: 'number' }]} onChange={onChange} />,
+      <MasumeGrid data={[['100']]} columns={[{ title: 'N', type: 'number' }]} onChange={onChange} />,
     );
     const cell = screen.getByText('100');
     fireEvent.mouseDown(cell);
@@ -151,7 +151,7 @@ describe('MeasureGrid', () => {
       { value: 'C02', label: '青果' },
     ];
     render(
-      <MeasureGrid
+      <MasumeGrid
         data={[['C01']]}
         columns={[{ title: 'カテゴリ', type: 'select', options }]}
         onChange={onChange}
@@ -167,7 +167,7 @@ describe('MeasureGrid', () => {
   it('rejects values outside the options of a strict select column', () => {
     const onChange = vi.fn();
     render(
-      <MeasureGrid
+      <MasumeGrid
         data={[['a']]}
         columns={[{ title: 'S', type: 'select', options: ['x', 'y'] }]}
         onChange={onChange}
@@ -183,7 +183,7 @@ describe('MeasureGrid', () => {
   it('edits date cells with a date input and commits ISO values', () => {
     const onChange = vi.fn();
     render(
-      <MeasureGrid data={[['2026-07-06']]} columns={[{ title: 'D', type: 'date' }]} onChange={onChange} />,
+      <MasumeGrid data={[['2026-07-06']]} columns={[{ title: 'D', type: 'date' }]} onChange={onChange} />,
     );
     const cell = screen.getByText('2026-07-06');
     fireEvent.mouseDown(cell);
@@ -198,7 +198,7 @@ describe('MeasureGrid', () => {
   it('keeps the old date when the picker holds unparsable input (bug 1)', () => {
     const onChange = vi.fn();
     render(
-      <MeasureGrid data={[['2026-01-01']]} columns={[{ title: 'D', type: 'date' }]} onChange={onChange} />,
+      <MasumeGrid data={[['2026-01-01']]} columns={[{ title: 'D', type: 'date' }]} onChange={onChange} />,
     );
     const cell = screen.getByText('2026-01-01');
     fireEvent.mouseDown(cell);
@@ -216,7 +216,7 @@ describe('MeasureGrid', () => {
   it('still allows deliberately clearing a date cell', () => {
     const onChange = vi.fn();
     render(
-      <MeasureGrid data={[['2026-01-01']]} columns={[{ title: 'D', type: 'date' }]} onChange={onChange} />,
+      <MasumeGrid data={[['2026-01-01']]} columns={[{ title: 'D', type: 'date' }]} onChange={onChange} />,
     );
     const cell = screen.getByText('2026-01-01');
     fireEvent.mouseDown(cell);
@@ -234,7 +234,7 @@ describe('MeasureGrid', () => {
       { value: 'C02', label: '青果' },
     ];
     render(
-      <MeasureGrid
+      <MasumeGrid
         data={[['C01']]}
         columns={[{ title: 'カテゴリ', type: 'select', options }]}
         onChange={onChange}
@@ -253,7 +253,7 @@ describe('MeasureGrid', () => {
   });
 
   it('keeps editing when clicking inside the date editor (calendar icon)', () => {
-    render(<MeasureGrid data={[['2026-01-01']]} columns={[{ title: 'D', type: 'date' }]} />);
+    render(<MasumeGrid data={[['2026-01-01']]} columns={[{ title: 'D', type: 'date' }]} />);
     const cell = screen.getByText('2026-01-01');
     fireEvent.mouseDown(cell);
     fireEvent.doubleClick(cell);
@@ -264,7 +264,7 @@ describe('MeasureGrid', () => {
 
   it('keeps editing when clicking the dropdown container (e.g. its scrollbar)', () => {
     render(
-      <MeasureGrid data={[['x']]} columns={[{ title: 'S', type: 'select', options: ['x', 'y'] }]} />,
+      <MasumeGrid data={[['x']]} columns={[{ title: 'S', type: 'select', options: ['x', 'y'] }]} />,
     );
     const cell = screen.getByText('x');
     fireEvent.mouseDown(cell);
@@ -276,7 +276,7 @@ describe('MeasureGrid', () => {
   it('normalizes pasted dates and numbers', () => {
     const onChange = vi.fn();
     render(
-      <MeasureGrid
+      <MasumeGrid
         data={[['x', 'y']]}
         columns={[
           { title: 'N', type: 'number' },
@@ -295,7 +295,7 @@ describe('MeasureGrid', () => {
   it('pastes tab-separated text starting at the active cell', () => {
     const onChange = vi.fn();
     render(
-      <MeasureGrid
+      <MasumeGrid
         data={[
           ['a', 'b'],
           ['c', 'd'],

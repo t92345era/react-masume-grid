@@ -1,4 +1,4 @@
-# MeasureGrid
+# MasumeGrid
 
 [日本語版 README はこちら](README.ja.md)
 
@@ -13,16 +13,16 @@ A lightweight, generic React spreadsheet component. React is the only dependency
 ## Installation
 
 ```sh
-npm install react-measure-grid
+npm install react-masume-grid
 ```
 
 ## Usage
 
 ```tsx
 import { useState } from 'react';
-import { MeasureGrid } from 'react-measure-grid';
+import { MasumeGrid } from 'react-masume-grid';
 // CSS loads automatically when you import the library.
-// Depending on your bundler you may need: import 'react-measure-grid/styles.css';
+// Depending on your bundler you may need: import 'react-masume-grid/styles.css';
 
 function App() {
   const [data, setData] = useState<string[][]>([
@@ -31,7 +31,7 @@ function App() {
   ]);
 
   return (
-    <MeasureGrid
+    <MasumeGrid
       data={data}
       onChange={setData}
       columns={[
@@ -118,13 +118,13 @@ Override CSS variables to theme the grid.
 
 ```css
 .my-grid {
-  --measure-grid-accent: #0f9d58;
-  --measure-grid-sel-bg: rgba(15, 157, 88, 0.12);
-  --measure-grid-header-bg: #f0f4f1;
+  --masume-grid-accent: #0f9d58;
+  --masume-grid-sel-bg: rgba(15, 157, 88, 0.12);
+  --masume-grid-header-bg: #f0f4f1;
 }
 ```
 
-See the top of [src/measure-grid.css](src/measure-grid.css) for the full list of variables.
+See the top of [src/masume-grid.css](src/masume-grid.css) for the full list of variables.
 
 ## How IME support works
 

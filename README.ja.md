@@ -1,4 +1,4 @@
-# MeasureGrid
+# MasumeGrid
 
 [English README is here](README.md)
 
@@ -13,16 +13,16 @@
 ## インストール
 
 ```sh
-npm install react-measure-grid
+npm install react-masume-grid
 ```
 
 ## 使い方
 
 ```tsx
 import { useState } from 'react';
-import { MeasureGrid } from 'react-measure-grid';
+import { MasumeGrid } from 'react-masume-grid';
 // ライブラリを直接 import した場合、CSS は自動で読み込まれます。
-// バンドラー設定によっては明示的に: import 'react-measure-grid/styles.css';
+// バンドラー設定によっては明示的に: import 'react-masume-grid/styles.css';
 
 function App() {
   const [data, setData] = useState<string[][]>([
@@ -31,7 +31,7 @@ function App() {
   ]);
 
   return (
-    <MeasureGrid
+    <MasumeGrid
       data={data}
       onChange={setData}
       columns={[
@@ -118,13 +118,13 @@ CSS 変数を上書きするだけでテーマを変更できます。
 
 ```css
 .my-grid {
-  --measure-grid-accent: #0f9d58;
-  --measure-grid-sel-bg: rgba(15, 157, 88, 0.12);
-  --measure-grid-header-bg: #f0f4f1;
+  --masume-grid-accent: #0f9d58;
+  --masume-grid-sel-bg: rgba(15, 157, 88, 0.12);
+  --masume-grid-header-bg: #f0f4f1;
 }
 ```
 
-利用可能な変数は [src/measure-grid.css](src/measure-grid.css) 冒頭を参照してください。
+利用可能な変数は [src/masume-grid.css](src/masume-grid.css) 冒頭を参照してください。
 
 ## IME（日本語入力）対応の仕組み
 

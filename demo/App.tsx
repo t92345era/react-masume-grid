@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { MeasureGrid } from '../src';
+import { MasumeGrid } from '../src';
 import type { ColumnDef, NormalizedRange } from '../src';
 import './demo.css';
 
@@ -74,7 +74,7 @@ export default function App() {
 
   return (
     <div className="demo">
-      <h1>MeasureGrid デモ</h1>
+      <h1>MasumeGrid デモ</h1>
       <p className="demo-hint">
         ダブルクリック / F2 / キー入力で編集（日本語入力対応）。ドラッグ・Shift・Ctrl(⌘)で範囲選択。
         Ctrl+C / X / V でコピー・切り取り・貼り付け（Excelと相互運用可）。Delete でクリア。
@@ -122,7 +122,7 @@ export default function App() {
         </label>
         <span className="demo-selection">{selectionLabel}</span>
       </div>
-      <MeasureGrid
+      <MasumeGrid
         data={data}
         columns={columns}
         onChange={setData}

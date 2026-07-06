@@ -1,7 +1,7 @@
 {
-  "name": "react-measure-grid",
+  "name": "react-masume-grid",
   "version": "0.1.0",
-  "description": "MeasureGrid — a lightweight React spreadsheet component with IME-friendly cell editing, cell types (text/number/select/date), range selection, and Excel-compatible clipboard support.",
+  "description": "MasumeGrid (マス目) — a lightweight React spreadsheet component with IME-friendly cell editing, cell types (text/number/select/date), range selection, and Excel-compatible clipboard support.",
   "keywords": [
     "react",
     "spreadsheet",
@@ -14,20 +14,28 @@
   ],
   "license": "MIT",
   "author": "t92345era",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/t92345era/react-masume-grid.git"
+  },
+  "homepage": "https://github.com/t92345era/react-masume-grid#readme",
+  "bugs": {
+    "url": "https://github.com/t92345era/react-masume-grid/issues"
+  },
   "type": "module",
   "files": [
     "dist"
   ],
-  "main": "./dist/measure-grid.cjs",
-  "module": "./dist/measure-grid.js",
+  "main": "./dist/masume-grid.cjs",
+  "module": "./dist/masume-grid.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/measure-grid.js",
-      "require": "./dist/measure-grid.cjs"
+      "import": "./dist/masume-grid.js",
+      "require": "./dist/masume-grid.cjs"
     },
-    "./styles.css": "./dist/measure-grid.css"
+    "./styles.css": "./dist/masume-grid.css"
   },
   "sideEffects": [
     "**/*.css"

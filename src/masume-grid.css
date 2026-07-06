@@ -1,0 +1,243 @@
+.masume-grid {
+  --masume-grid-border: #d5dae1;
+  --masume-grid-header-bg: #f5f6f8;
+  --masume-grid-header-fg: #55606e;
+  --masume-grid-header-sel-bg: #e2ebf8;
+  --masume-grid-cell-bg: #ffffff;
+  --masume-grid-cell-fg: #1d232b;
+  --masume-grid-readonly-fg: #8a93a0;
+  --masume-grid-sel-bg: rgba(29, 112, 214, 0.12);
+  --masume-grid-accent: #1d70d6;
+
+  position: relative;
+  overflow: auto;
+  /* Defensive: the grid virtualizes rows and manages scroll itself, so
+     browser scroll anchoring must not react to its layout changes. */
+  overflow-anchor: none;
+  height: 420px;
+  border: 1px solid var(--masume-grid-border);
+  background: var(--masume-grid-cell-bg);
+  color: var(--masume-grid-cell-fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans",
+    "Noto Sans JP", Meiryo, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  user-select: none;
+  -webkit-user-select: none;
+  box-sizing: border-box;
+}
+
+.masume-grid *,
+.masume-grid *::before,
+.masume-grid *::after {
+  box-sizing: border-box;
+}
+
+.masume-grid:focus-within {
+  border-color: var(--masume-grid-accent);
+}
+
+/* ----- header ----- */
+
+.masume-grid-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  background: var(--masume-grid-header-bg);
+}
+
+.masume-grid-hcell,
+.masume-grid-corner {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid var(--masume-grid-border);
+  border-bottom: 1px solid var(--masume-grid-border);
+  background: var(--masume-grid-header-bg);
+  color: var(--masume-grid-header-fg);
+  font-weight: 500;
+  cursor: default;
+}
+
+.masume-grid-hcell {
+  position: relative;
+}
+
+.masume-grid-hcell-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Resize grab zone straddling the column border. */
+.masume-grid-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -5px;
+  width: 10px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 1;
+}
+
+.masume-grid-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 2px;
+  background: transparent;
+}
+
+.masume-grid-resize-handle:hover::after,
+.masume-grid-resize-handle--active::after {
+  background: var(--masume-grid-accent);
+}
+
+.masume-grid--resizing,
+.masume-grid--resizing .masume-grid-cell,
+.masume-grid--resizing .masume-grid-hcell {
+  cursor: col-resize;
+}
+
+.masume-grid-corner {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+}
+
+.masume-grid-hcell--sel {
+  background: var(--masume-grid-header-sel-bg);
+  color: var(--masume-grid-accent);
+}
+
+/* ----- body ----- */
+
+.masume-grid-body {
+  position: relative;
+}
+
+.masume-grid-row {
+  position: absolute;
+  left: 0;
+  display: flex;
+}
+
+.masume-grid-rownum {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid var(--masume-grid-border);
+  border-bottom: 1px solid var(--masume-grid-border);
+  background: var(--masume-grid-header-bg);
+  color: var(--masume-grid-header-fg);
+  cursor: default;
+}
+
+.masume-grid-rownum--sel {
+  background: var(--masume-grid-header-sel-bg);
+  color: var(--masume-grid-accent);
+}
+
+.masume-grid-cell {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  border-right: 1px solid var(--masume-grid-border);
+  border-bottom: 1px solid var(--masume-grid-border);
+  background: var(--masume-grid-cell-bg);
+  overflow: hidden;
+  white-space: pre;
+  cursor: cell;
+}
+
+.masume-grid-cell--readonly {
+  color: var(--masume-grid-readonly-fg);
+}
+
+.masume-grid-cell--sel {
+  background: var(--masume-grid-sel-bg);
+}
+
+.masume-grid-cell--active {
+  background: var(--masume-grid-cell-bg);
+  outline: 2px solid var(--masume-grid-accent);
+  outline-offset: -2px;
+}
+
+/* ----- editor (doubles as the hidden IME proxy) ----- */
+
+.masume-grid-editor {
+  position: absolute;
+  z-index: 2;
+  margin: 0;
+  padding: 2px 5px;
+  border: 2px solid var(--masume-grid-accent);
+  border-radius: 0;
+  background: var(--masume-grid-cell-bg);
+  color: inherit;
+  font: inherit;
+  resize: none;
+  overflow: hidden;
+  outline: none;
+}
+
+.masume-grid-editor--hidden {
+  opacity: 0;
+  pointer-events: none;
+  border: none;
+  padding: 0;
+}
+
+.masume-grid-editor--date {
+  padding: 0 4px;
+}
+
+/* ----- cell types ----- */
+
+.masume-grid-cell--num {
+  justify-content: flex-end;
+  font-variant-numeric: tabular-nums;
+}
+
+.masume-grid-cell--select {
+  position: relative;
+  padding-right: 18px;
+}
+
+.masume-grid-cell-arrow {
+  position: absolute;
+  right: 4px;
+  color: var(--masume-grid-readonly-fg);
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.masume-grid-dropdown {
+  position: absolute;
+  z-index: 5;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--masume-grid-cell-bg);
+  border: 1px solid var(--masume-grid-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
+}
+
+.masume-grid-option {
+  padding: 4px 8px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.masume-grid-option--hi {
+  background: var(--masume-grid-sel-bg);
+  color: var(--masume-grid-accent);
+}

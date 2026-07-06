@@ -60,7 +60,7 @@ export interface NormalizedRange {
   right: number;
 }
 
-export interface MeasureGridProps {
+export interface MasumeGridProps {
   /** Grid contents as a 2D array of strings. Rows may be ragged. */
   data: CellValue[][];
   /**

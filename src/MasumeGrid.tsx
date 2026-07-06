@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { CellPos, CellValue, MeasureGridProps } from './types';
+import type { CellPos, CellValue, MasumeGridProps } from './types';
 import type { SelRange } from './utils';
 import {
   clamp,
@@ -18,7 +18,7 @@ import {
   normalizeRange,
   parseClipboardText,
 } from './utils';
-import './measure-grid.css';
+import './masume-grid.css';
 
 const OVERSCAN = 4;
 const MIN_COL_WIDTH = 24;
@@ -37,7 +37,7 @@ interface CellChange {
   value: CellValue;
 }
 
-export function MeasureGrid({
+export function MasumeGrid({
   data,
   columns,
   onChange,
@@ -54,7 +54,7 @@ export function MeasureGrid({
   rowNumberWidth = 48,
   className,
   style,
-}: MeasureGridProps) {
+}: MasumeGridProps) {
   const rowCount = data.length;
   const colCount = useMemo(
     () => (columns ? columns.length : data.reduce((m, r) => Math.max(m, r.length), 0)),
@@ -879,7 +879,7 @@ export function MeasureGrid({
         <div
           key="rownum"
           data-rownum={r}
-          className={'measure-grid-rownum' + (isRowSelected(r) ? ' measure-grid-rownum--sel' : '')}
+          className={'masume-grid-rownum' + (isRowSelected(r) ? ' masume-grid-rownum--sel' : '')}
           style={{ width: rowNumW, height: rowHeight }}
         >
           {r + 1}
@@ -902,17 +902,17 @@ export function MeasureGrid({
           role="gridcell"
           aria-selected={selected}
           className={
-            'measure-grid-cell' +
-            (selected ? ' measure-grid-cell--sel' : '') +
-            (isActive ? ' measure-grid-cell--active' : '') +
-            (!canEditCell(c) ? ' measure-grid-cell--readonly' : '') +
-            (type === 'number' ? ' measure-grid-cell--num' : '') +
-            (type === 'select' ? ' measure-grid-cell--select' : '')
+            'masume-grid-cell' +
+            (selected ? ' masume-grid-cell--sel' : '') +
+            (isActive ? ' masume-grid-cell--active' : '') +
+            (!canEditCell(c) ? ' masume-grid-cell--readonly' : '') +
+            (type === 'number' ? ' masume-grid-cell--num' : '') +
+            (type === 'select' ? ' masume-grid-cell--select' : '')
           }
           style={{ width: widths[c], height: rowHeight }}
         >
           {display}
-          {type === 'select' && <span className="measure-grid-cell-arrow">▾</span>}
+          {type === 'select' && <span className="masume-grid-cell-arrow">▾</span>}
         </div>,
       );
     }
@@ -920,7 +920,7 @@ export function MeasureGrid({
       <div
         key={r}
         role="row"
-        className="measure-grid-row"
+        className="masume-grid-row"
         style={{ top: r * rowHeight, width: totalW, height: rowHeight }}
       >
         {cells}
@@ -940,8 +940,8 @@ export function MeasureGrid({
       aria-rowcount={rowCount}
       aria-colcount={colCount}
       className={
-        'measure-grid' +
-        (resizingCol !== null ? ' measure-grid--resizing' : '') +
+        'masume-grid' +
+        (resizingCol !== null ? ' masume-grid--resizing' : '') +
         (className ? ' ' + className : '')
       }
       style={style}
@@ -950,11 +950,11 @@ export function MeasureGrid({
       onDoubleClick={handleDoubleClick}
     >
       {showHeader && (
-        <div className="measure-grid-head" style={{ width: totalW, height: headerH }}>
+        <div className="masume-grid-head" style={{ width: totalW, height: headerH }}>
           {showRowNumbers && (
             <div
               data-corner
-              className="measure-grid-corner"
+              className="masume-grid-corner"
               style={{ width: rowNumW, height: headerH }}
             />
           )}
@@ -962,15 +962,15 @@ export function MeasureGrid({
             <div
               key={c}
               data-hcol={c}
-              className={'measure-grid-hcell' + (isColSelected(c) ? ' measure-grid-hcell--sel' : '')}
+              className={'masume-grid-hcell' + (isColSelected(c) ? ' masume-grid-hcell--sel' : '')}
               style={{ width: widths[c], height: headerH }}
             >
-              <span className="measure-grid-hcell-label">{columns?.[c]?.title ?? colName(c)}</span>
+              <span className="masume-grid-hcell-label">{columns?.[c]?.title ?? colName(c)}</span>
               {canResizeCol(c) && (
                 <div
                   className={
-                    'measure-grid-resize-handle' +
-                    (resizingCol === c ? ' measure-grid-resize-handle--active' : '')
+                    'masume-grid-resize-handle' +
+                    (resizingCol === c ? ' masume-grid-resize-handle--active' : '')
                   }
                   onMouseDown={(e) => beginColumnResize(e, c)}
                   onDoubleClick={(e) => e.stopPropagation()}
@@ -980,12 +980,12 @@ export function MeasureGrid({
           ))}
         </div>
       )}
-      <div className="measure-grid-body" style={{ width: totalW, height: totalH }}>
+      <div className="masume-grid-body" style={{ width: totalW, height: totalH }}>
         {rows}
         {showEditor && (
           <textarea
             ref={taRef}
-            className={'measure-grid-editor' + (textareaVisible ? '' : ' measure-grid-editor--hidden')}
+            className={'masume-grid-editor' + (textareaVisible ? '' : ' masume-grid-editor--hidden')}
             style={{
               top: editorPos.row * rowHeight,
               left: rowNumW + offsets[editorPos.col],
@@ -1015,7 +1015,7 @@ export function MeasureGrid({
           <input
             ref={dateRef}
             type="date"
-            className="measure-grid-editor measure-grid-editor--date"
+            className="masume-grid-editor masume-grid-editor--date"
             style={{
               top: editing.row * rowHeight,
               left: rowNumW + offsets[editing.col],
@@ -1032,7 +1032,7 @@ export function MeasureGrid({
         {editing && dropdownOptions && dropdownOptions.length > 0 && (
           <div
             ref={dropdownRef}
-            className="measure-grid-dropdown"
+            className="masume-grid-dropdown"
             role="listbox"
             style={{
               top: (editing.row + 1) * rowHeight,
@@ -1045,7 +1045,7 @@ export function MeasureGrid({
                 key={`${o.value} ${i}`}
                 role="option"
                 aria-selected={i === dropdownIndex}
-                className={'measure-grid-option' + (i === dropdownIndex ? ' measure-grid-option--hi' : '')}
+                className={'masume-grid-option' + (i === dropdownIndex ? ' masume-grid-option--hi' : '')}
                 onMouseDown={(e) => {
                   // Keep focus on the textarea and don't let the grid's own
                   // mousedown handler treat this as a cell click.
