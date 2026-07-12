@@ -5,7 +5,7 @@
 軽量・汎用の React スプレッドシートコンポーネント。依存は React のみ（gzip 約 5KB）。
 
 - **グリッド表示** — 行番号・ヘッダーの表示/非表示切り替え、列幅指定、ドラッグでの列幅リサイズ、行の仮想化描画（数万行でも軽快）
-- **セル型** — 文字列 / 数値（全角・カンマ正規化）/ 選択肢（マスタデータのプルダウン、コード保存・ラベル表示）/ 日付（カレンダー入力、和式表記の貼り付け正規化）
+- **セル型** — 文字列 / 数値（全角・カンマ正規化）/ 選択肢（マスタデータのプルダウン、コード保存・ラベル表示）/ 日付（カレンダー入力、和式表記の貼り付け正規化）/ チェックボックス（クリック / Space でトグル）
 - **セル編集** — ダブルクリック / F2 / キー入力で編集開始。**日本語 IME 完全対応**（IMEオンで「A」を打つとセルが編集状態になり「あ」が入力される）
 - **範囲選択** — マウスドラッグ、Shift+クリック/矢印キーで拡張、Ctrl(⌘)+クリックで複数範囲追加。行・列ヘッダークリックで行/列選択、左上コーナーで全選択
 - **コピー＆ペースト** — Ctrl(⌘)+C / X / V。Excel・Google スプレッドシートと相互運用できる TSV 形式（改行・タブ・引用符を含むセルにも対応、単一セルのタイル貼り付けも可）
@@ -53,7 +53,7 @@ function App() {
 | Prop | 型 | 既定値 | 説明 |
 | --- | --- | --- | --- |
 | `data` | `string[][]` | （必須） | グリッドの内容。行の長さは不揃いでも可 |
-| `columns` | `ColumnDef[]` | — | `{ title?, width?, readOnly?, resizable?, type?, options?, strict? }` の配列。省略時は data から列数を導出 |
+| `columns` | `ColumnDef[]` | — | `{ title?, width?, readOnly?, resizable?, type?, options?, strict?, filterable? }` の配列。省略時は data から列数を導出 |
 | `onChange` | `(next: string[][]) => void` | — | 編集・貼り付け・削除のたびに新しい 2 次元配列で呼ばれる |
 | `onCellChange` | `(row, col, value) => void` | — | 変更セルごとに呼ばれる。`onChange` の代わり/併用可 |
 | `onSelectionChange` | `(ranges: NormalizedRange[]) => void` | — | 選択変更時（`{top,left,bottom,right}` の配列） |
@@ -86,6 +86,7 @@ const columns: ColumnDef[] = [
   ]},
   { title: '状態', type: 'select', options: ['在庫あり', '取り寄せ'] }, // 文字列だけでも可
   { title: '入荷日', type: 'date' },
+  { title: '検品済', type: 'checkbox' },
 ];
 ```
 
@@ -93,10 +94,11 @@ const columns: ColumnDef[] = [
 | --- | --- | --- |
 | `text` | テキスト（IME対応） | 既定。自由入力 |
 | `number` | テキスト（IME対応） | 右寄せ表示。確定時に全角数字→半角、カンマ除去を正規化。数値でない入力は**拒否**（元の値を保持） |
-| `select` | 絞り込み付きプルダウン | ↑↓で候補移動、Enter/クリックで確定、文字入力で絞り込み。Alt+↓でも開く。`options` は `string` または `{value, label}`（value を保存し label を表示）。既定では options 外の値を拒否（`strict: false` で自由入力許可） |
+| `select` | 絞り込み付きプルダウン | ↑↓で候補移動、Enter/クリックで確定、文字入力で絞り込み。Alt+↓でも開く。`options` は `string` または `{value, label}`（value を保存し label を表示）。既定では options 外の値を拒否（`strict: false` で自由入力許可）。`filterable: false` で絞り込みを無効化（常に全候補を表示し、文字入力は先頭一致の候補へハイライトを移動） |
 | `date` | ネイティブの日付ピッカー | `YYYY-MM-DD` で保存。貼り付け時は `2026/7/6`・`2026年7月6日`・`20260706`・全角も正規化。無効な日付は拒否。Alt+↓でカレンダーを開く |
+| `checkbox` | トグル（テキスト編集なし） | チェック時 `'true'`・未チェック時 `''` を保存。チェックボックスのクリックまたは Space でトグル（Space は選択中のチェックボックスセルすべてをトグル）。貼り付け時は `TRUE`/`FALSE`・`1`/`0`・`yes`/`no` などを正規化し、それ以外は**拒否** |
 
-正規化・検証は**編集確定と貼り付けの両方**に適用されます。無効な値のセルは変更されずスキップされます。正規化関数は `normalizeNumberInput` / `normalizeDateInput` としてエクスポートしているので、アプリ側のバリデーションにも再利用できます。
+正規化・検証は**編集確定と貼り付けの両方**に適用されます。無効な値のセルは変更されずスキップされます。正規化関数は `normalizeNumberInput` / `normalizeDateInput` / `normalizeCheckboxInput`（および `isCheckboxChecked`）としてエクスポートしているので、アプリ側のバリデーションにも再利用できます。
 
 ## キーボード操作
 
@@ -108,6 +110,7 @@ const columns: ColumnDef[] = [
 | 任意の文字キー | その文字で編集開始（IME 対応） |
 | F2 / ダブルクリック | 既存値を保持したまま編集開始 |
 | Enter / Tab | 編集確定して移動、Esc で取り消し、Alt+Enter でセル内改行 |
+| Space | 選択中のチェックボックスセルをトグル |
 | Delete / Backspace | 選択セルをクリア |
 | Ctrl(⌘)+A | 全選択 |
 | Ctrl(⌘)+C / X / V | コピー / 切り取り / 貼り付け |

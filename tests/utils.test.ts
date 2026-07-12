@@ -3,7 +3,9 @@ import {
   clamp,
   colName,
   columnOffsets,
+  isCheckboxChecked,
   matrixToTSV,
+  normalizeCheckboxInput,
   normalizeDateInput,
   normalizeNumberInput,
   normalizeRange,
@@ -122,6 +124,39 @@ describe('normalizeDateInput', () => {
     expect(normalizeDateInput('2026-13-01')).toBeNull();
     expect(normalizeDateInput('hello')).toBeNull();
     expect(normalizeDateInput('7/6')).toBeNull();
+  });
+});
+
+describe('normalizeCheckboxInput / isCheckboxChecked', () => {
+  it('normalizes truthy spellings to "true"', () => {
+    expect(normalizeCheckboxInput('true')).toBe('true');
+    expect(normalizeCheckboxInput('TRUE')).toBe('true');
+    expect(normalizeCheckboxInput('1')).toBe('true');
+    expect(normalizeCheckboxInput('yes')).toBe('true');
+    expect(normalizeCheckboxInput('on')).toBe('true');
+    expect(normalizeCheckboxInput('✓')).toBe('true');
+    expect(normalizeCheckboxInput('ＴＲＵＥ')).toBe('true');
+  });
+
+  it('normalizes falsy spellings to ""', () => {
+    expect(normalizeCheckboxInput('')).toBe('');
+    expect(normalizeCheckboxInput('false')).toBe('');
+    expect(normalizeCheckboxInput('FALSE')).toBe('');
+    expect(normalizeCheckboxInput('0')).toBe('');
+    expect(normalizeCheckboxInput('no')).toBe('');
+    expect(normalizeCheckboxInput('off')).toBe('');
+  });
+
+  it('rejects anything else', () => {
+    expect(normalizeCheckboxInput('maybe')).toBeNull();
+    expect(normalizeCheckboxInput('2')).toBeNull();
+  });
+
+  it('isCheckboxChecked treats only truthy spellings as checked', () => {
+    expect(isCheckboxChecked('true')).toBe(true);
+    expect(isCheckboxChecked('1')).toBe(true);
+    expect(isCheckboxChecked('')).toBe(false);
+    expect(isCheckboxChecked('garbage')).toBe(false);
   });
 });
 

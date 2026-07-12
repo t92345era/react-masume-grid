@@ -12,7 +12,9 @@ import {
   clamp,
   colName,
   columnOffsets,
+  isCheckboxChecked,
   matrixToTSV,
+  normalizeCheckboxInput,
   normalizeDateInput,
   normalizeNumberInput,
   normalizeRange,
@@ -87,9 +89,13 @@ export function MasumeGrid({
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportH, setViewportH] = useState(0);
 
-  // Select-column dropdown state: null filter = show all options.
+  // Select-column dropdown state: optionFilter is the text typed since the
+  // edit started (null = nothing typed); it only narrows the list when the
+  // column is filterable.
   const [optionFilter, setOptionFilter] = useState<string | null>(null);
   const [dropdownIndex, setDropdownIndex] = useState(0);
+  // Whether the user moved the dropdown highlight with arrow keys.
+  const dropdownNavRef = useRef(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -140,6 +146,11 @@ export function MasumeGrid({
     [columns],
   );
 
+  const isFilterable = useCallback(
+    (col: number) => columns?.[col]?.filterable ?? true,
+    [columns],
+  );
+
   /** Normalized options per select column. */
   const selectOptions = useMemo(() => {
     const map = new Map<number, { value: string; label: string }[]>();
@@ -176,6 +187,8 @@ export function MasumeGrid({
           return normalizeNumberInput(value);
         case 'date':
           return normalizeDateInput(value);
+        case 'checkbox':
+          return normalizeCheckboxInput(value);
         case 'select': {
           if (value === '') return '';
           const opts = selectOptions.get(col);
@@ -224,6 +237,33 @@ export function MasumeGrid({
     },
     [canEditCell, coerceValue, data, onChange, onCellChange],
   );
+
+  const toggleCheckbox = useCallback(
+    (pos: CellPos) => {
+      const raw = data[pos.row]?.[pos.col] ?? '';
+      applyCellValues([{ row: pos.row, col: pos.col, value: isCheckboxChecked(raw) ? '' : 'true' }]);
+    },
+    [data, applyCellValues],
+  );
+
+  /** Space on a checkbox cell: toggle every selected checkbox cell. */
+  const toggleSelectedCheckboxes = () => {
+    const changes: CellChange[] = [];
+    const seen = new Set<number>();
+    for (const nr of normRanges) {
+      for (let r = nr.top; r <= nr.bottom; r++) {
+        for (let c = nr.left; c <= nr.right; c++) {
+          if (colType(c) !== 'checkbox') continue;
+          const key = r * Math.max(1, colCount) + c;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const raw = data[r]?.[c] ?? '';
+          changes.push({ row: r, col: c, value: isCheckboxChecked(raw) ? '' : 'true' });
+        }
+      }
+    }
+    applyCellValues(changes);
+  };
 
   // ----- editing --------------------------------------------------------
 
@@ -274,6 +314,7 @@ export function MasumeGrid({
       if (rowCount === 0 || colCount === 0) return;
       if (!canEditCell(target.col)) return;
       const type = colType(target.col);
+      if (type === 'checkbox') return; // toggled by click/Space, never text-edited
       let initial = mode === 'edit' ? (data[target.row]?.[target.col] ?? '') : '';
       // The native date input only accepts ISO values.
       if (type === 'date') initial = normalizeDateInput(initial) ?? '';
@@ -283,6 +324,7 @@ export function MasumeGrid({
       setEditing({ row: target.row, col: target.col, mode });
       setEditValue(initial);
       setOptionFilter(null); // dropdown starts unfiltered
+      dropdownNavRef.current = false;
       scrollCellIntoView(target);
       if (mode === 'edit' && type !== 'date') {
         requestAnimationFrame(() => {
@@ -317,13 +359,13 @@ export function MasumeGrid({
   const dropdownOptions = useMemo(() => {
     if (!editing || editingType !== 'select') return null;
     const opts = selectOptions.get(editing.col) ?? [];
-    if (optionFilter === null) return opts;
+    if (optionFilter === null || !isFilterable(editing.col)) return opts;
     const q = optionFilter.trim().toLowerCase();
     if (q === '') return opts;
     return opts.filter(
       (o) => o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q),
     );
-  }, [editing, editingType, selectOptions, optionFilter]);
+  }, [editing, editingType, selectOptions, optionFilter, isFilterable]);
 
   // Keep the highlight on an exact match (or the current cell value) when possible.
   useEffect(() => {
@@ -333,9 +375,16 @@ export function MasumeGrid({
       const raw = data[editing.row]?.[editing.col] ?? '';
       idx = dropdownOptions.findIndex((o) => o.value === raw);
     }
+    // Non-filterable dropdown: typing jumps the highlight to the first
+    // prefix match (native-select-style type-ahead) and otherwise stays put.
+    if (idx < 0 && optionFilter !== null && !isFilterable(editing.col)) {
+      const q = optionFilter.trim().toLowerCase();
+      if (q !== '') idx = dropdownOptions.findIndex((o) => o.label.toLowerCase().startsWith(q));
+      if (idx < 0) return;
+    }
     setDropdownIndex(Math.max(0, idx));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dropdownOptions]);
+  }, [dropdownOptions, editValue]);
 
   useEffect(() => {
     const el = dropdownRef.current?.children[dropdownIndex] as HTMLElement | undefined;
@@ -486,18 +535,28 @@ export function MasumeGrid({
       if (colType(ed.col) === 'select' && dropdownOptions) {
         if (e.key === 'ArrowDown') {
           e.preventDefault();
+          dropdownNavRef.current = true;
           setDropdownIndex((i) => Math.min(i + 1, Math.max(0, dropdownOptions.length - 1)));
           return;
         }
         if (e.key === 'ArrowUp') {
           e.preventDefault();
+          dropdownNavRef.current = true;
           setDropdownIndex((i) => Math.max(i - 1, 0));
           return;
         }
         if (e.key === 'Enter' || e.key === 'Tab') {
           e.preventDefault();
           const opt = dropdownOptions[dropdownIndex];
-          commitEdit(true, opt?.value);
+          // When filtering, the highlight tracks what was typed, so it wins.
+          // Without filtering, typed free text (strict: false) wins unless
+          // the user explicitly picked an option with the arrow keys.
+          const useOpt =
+            isFilterable(ed.col) ||
+            optionFilter === null ||
+            dropdownNavRef.current ||
+            columns?.[ed.col]?.strict !== false;
+          commitEdit(true, useOpt ? opt?.value : undefined);
           if (e.key === 'Enter') moveActive(active.row + (shift ? -1 : 1), active.col);
           else moveActive(active.row, active.col + (shift ? -1 : 1));
           return;
@@ -648,13 +707,22 @@ export function MasumeGrid({
         return;
     }
 
+    // Space toggles checkbox cells (Excel-style) instead of starting an edit.
+    if (e.key === ' ' && !mod && !e.altKey && colType(active.col) === 'checkbox') {
+      e.preventDefault();
+      toggleSelectedCheckboxes();
+      return;
+    }
+
     // A printable key on a non-editing cell starts a "replace" edit.
     // No preventDefault: the character lands in the textarea natively,
     // which also makes this work for dead keys and unusual layouts.
     if (e.key.length === 1 && !mod && !e.altKey) {
-      // Date cells edit through the native picker, not free text, so the
-      // typed character must not land in the textarea.
-      if (colType(active.col) === 'date') e.preventDefault();
+      const type = colType(active.col);
+      // Date cells edit through the native picker and checkbox cells only
+      // toggle, so the typed character must not land in the textarea.
+      if (type === 'date' || type === 'checkbox') e.preventDefault();
+      if (type === 'checkbox') return;
       startEdit('replace');
     }
   };
@@ -689,11 +757,13 @@ export function MasumeGrid({
     if (!ed) {
       // Input arrived before the keydown-triggered state flush (or via a
       // path we did not see, e.g. some IMEs): start editing now.
-      if (!canEditCell(active.col) || colType(active.col) === 'date') return;
+      const type = colType(active.col);
+      if (!canEditCell(active.col) || type === 'date' || type === 'checkbox') return;
       setEditing({ row: active.row, col: active.col, mode: 'replace' });
     }
     setEditValue(e.target.value);
-    setOptionFilter(e.target.value); // user typed: filter the dropdown
+    setOptionFilter(e.target.value); // user typed (narrows filterable dropdowns)
+    dropdownNavRef.current = false;
   };
 
   /** Shared by the textarea and the date editor: commit unless focus stays inside the grid. */
@@ -819,6 +889,9 @@ export function MasumeGrid({
       else if (mod) setSelection((sel) => [...sel, { anchor: pos, focus: pos }]);
       else setSelection([{ anchor: pos, focus: pos }]);
       beginDrag();
+      // A plain click on the checkbox glyph itself toggles it (clicks
+      // elsewhere in the cell, and Shift/Ctrl selection gestures, don't).
+      if (!e.shiftKey && !mod && target.closest('[data-checkbox]')) toggleCheckbox(pos);
     }
   };
 
@@ -894,6 +967,7 @@ export function MasumeGrid({
       const type = colType(c);
       const raw = data[r]?.[c] ?? '';
       const display = type === 'select' ? (optionLabelByValue.get(c)?.get(raw) ?? raw) : raw;
+      const checked = type === 'checkbox' && isCheckboxChecked(raw);
       cells.push(
         <div
           key={c}
@@ -907,11 +981,21 @@ export function MasumeGrid({
             (isActive ? ' masume-grid-cell--active' : '') +
             (!canEditCell(c) ? ' masume-grid-cell--readonly' : '') +
             (type === 'number' ? ' masume-grid-cell--num' : '') +
-            (type === 'select' ? ' masume-grid-cell--select' : '')
+            (type === 'select' ? ' masume-grid-cell--select' : '') +
+            (type === 'checkbox' ? ' masume-grid-cell--checkbox' : '')
           }
           style={{ width: widths[c], height: rowHeight }}
         >
-          {display}
+          {type === 'checkbox' ? (
+            <span
+              data-checkbox
+              role="checkbox"
+              aria-checked={checked}
+              className={'masume-grid-checkbox' + (checked ? ' masume-grid-checkbox--on' : '')}
+            />
+          ) : (
+            display
+          )}
           {type === 'select' && <span className="masume-grid-cell-arrow">▾</span>}
         </div>,
       );

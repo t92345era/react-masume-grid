@@ -14,8 +14,11 @@ export type CellValue = string;
  *              and displays its `label`
  * - `date`   — native date picker; stored as `YYYY-MM-DD`; pasted text in
  *              common formats (2024/1/5, 2024年1月5日, 20240105) is normalized
+ * - `checkbox` — centered checkbox; stores `'true'` when checked and `''`
+ *              when unchecked; toggled by click or Space; pasted text such
+ *              as TRUE/FALSE, 1/0, yes/no is normalized
  */
-export type ColumnType = 'text' | 'number' | 'select' | 'date';
+export type ColumnType = 'text' | 'number' | 'select' | 'date' | 'checkbox';
 
 export interface SelectOption {
   /** Stored in the data. */
@@ -34,6 +37,12 @@ export interface ColumnDef {
    * Default: true. Set false to allow free input alongside the dropdown.
    */
   strict?: boolean;
+  /**
+   * For 'select' columns: narrow the dropdown to matching options as the
+   * user types. Default: true. Set false to always show the full option
+   * list (typing then jumps the highlight to the first prefix match).
+   */
+  filterable?: boolean;
   /** Header caption. Defaults to spreadsheet-style letters (A, B, C, …). */
   title?: string;
   /** Column width in pixels. Defaults to `defaultColumnWidth`. */

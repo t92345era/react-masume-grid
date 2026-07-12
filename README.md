@@ -5,7 +5,7 @@
 A lightweight, generic React spreadsheet component. React is the only dependency (~5KB gzipped).
 
 - **Grid display** — toggleable row numbers and header, per-column widths, drag-to-resize columns, virtualized rows (smooth with tens of thousands of rows)
-- **Cell types** — text / number (normalizes full-width digits and commas) / select (dropdown backed by master data, stores codes while displaying labels) / date (calendar input, normalizes pasted dates in common Japanese formats)
+- **Cell types** — text / number (normalizes full-width digits and commas) / select (dropdown backed by master data, stores codes while displaying labels) / date (calendar input, normalizes pasted dates in common Japanese formats) / checkbox (click or Space to toggle)
 - **Cell editing** — start editing by double-click, F2, or just typing. **Full IME support**: with a Japanese IME on, pressing "A" opens the editor and types 「あ」 right into the cell
 - **Range selection** — mouse drag, extend with Shift+click / Shift+arrows, add multiple ranges with Ctrl(⌘)+click. Click row/column headers to select whole rows/columns, the top-left corner to select all
 - **Copy & paste** — Ctrl(⌘)+C / X / V. TSV format interoperable with Excel and Google Sheets (handles cells containing newlines, tabs and quotes; tiles single-cell paste across a selection)
@@ -53,7 +53,7 @@ When `columns` is omitted, the column count is derived from `data` and headers s
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
 | `data` | `string[][]` | (required) | Grid contents. Rows may be ragged |
-| `columns` | `ColumnDef[]` | — | Array of `{ title?, width?, readOnly?, resizable?, type?, options?, strict? }`. When omitted, the column count is derived from data |
+| `columns` | `ColumnDef[]` | — | Array of `{ title?, width?, readOnly?, resizable?, type?, options?, strict?, filterable? }`. When omitted, the column count is derived from data |
 | `onChange` | `(next: string[][]) => void` | — | Called with a new 2D array on every edit / paste / delete |
 | `onCellChange` | `(row, col, value) => void` | — | Called once per changed cell. Use instead of (or with) `onChange` |
 | `onSelectionChange` | `(ranges: NormalizedRange[]) => void` | — | Called when the selection changes (array of `{top,left,bottom,right}`) |
@@ -86,6 +86,7 @@ const columns: ColumnDef[] = [
   ]},
   { title: 'Status', type: 'select', options: ['In stock', 'Backorder'] }, // plain strings work too
   { title: 'Arrival', type: 'date' },
+  { title: 'Inspected', type: 'checkbox' },
 ];
 ```
 
@@ -93,10 +94,11 @@ const columns: ColumnDef[] = [
 | --- | --- | --- |
 | `text` | Text (IME-aware) | Default; free text |
 | `number` | Text (IME-aware) | Right-aligned. On commit, full-width digits are converted and thousands separators removed. Non-numeric input is **rejected** (the cell keeps its old value) |
-| `select` | Filtering dropdown | ↑↓ to move, Enter/click to commit, type to filter. Alt+↓ also opens it. `options` accepts `string` or `{value, label}` (stores value, displays label). Values outside the options are rejected by default (`strict: false` allows free input) |
+| `select` | Filtering dropdown | ↑↓ to move, Enter/click to commit, type to filter. Alt+↓ also opens it. `options` accepts `string` or `{value, label}` (stores value, displays label). Values outside the options are rejected by default (`strict: false` allows free input). `filterable: false` disables the type-to-filter narrowing: the full list stays visible and typing jumps the highlight to the first prefix match instead |
 | `date` | Native date picker | Stored as `YYYY-MM-DD`. Pasted text such as `2026/7/6`, `2026年7月6日`, `20260706` and full-width digits is normalized. Invalid dates are rejected. Alt+↓ opens the calendar |
+| `checkbox` | Toggle (no text editor) | Stores `'true'` when checked, `''` when unchecked. Click the checkbox or press Space to toggle (Space toggles every selected checkbox cell). Pasted text such as `TRUE`/`FALSE`, `1`/`0`, `yes`/`no` is normalized; anything else is **rejected** |
 
-Normalization and validation apply to **both edit commits and paste**. Cells with invalid values are skipped and keep their old value. The normalizers are exported as `normalizeNumberInput` / `normalizeDateInput` for reuse in your own validation.
+Normalization and validation apply to **both edit commits and paste**. Cells with invalid values are skipped and keep their old value. The normalizers are exported as `normalizeNumberInput` / `normalizeDateInput` / `normalizeCheckboxInput` (plus `isCheckboxChecked`) for reuse in your own validation.
 
 ## Keyboard
 
@@ -108,6 +110,7 @@ Normalization and validation apply to **both edit commits and paste**. Cells wit
 | Any printable key | Start editing with that character (IME-aware) |
 | F2 / double-click | Start editing, keeping the current value |
 | Enter / Tab | Commit and move; Esc cancels; Alt+Enter inserts a newline in the cell |
+| Space | Toggle selected checkbox cells |
 | Delete / Backspace | Clear selected cells |
 | Ctrl(⌘)+A | Select all |
 | Ctrl(⌘)+C / X / V | Copy / cut / paste |

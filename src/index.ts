@@ -8,4 +8,10 @@ export type {
   NormalizedRange,
   SelectOption,
 } from './types';
-export { normalizeDateInput, normalizeNumberInput, toHalfWidth } from './utils';
+export {
+  isCheckboxChecked,
+  normalizeCheckboxInput,
+  normalizeDateInput,
+  normalizeNumberInput,
+  toHalfWidth,
+} from './utils';

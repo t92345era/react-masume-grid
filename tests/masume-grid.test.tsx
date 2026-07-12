@@ -9,6 +9,8 @@ beforeAll(() => {
     unobserve() {}
     disconnect() {}
   } as unknown as typeof ResizeObserver;
+  // jsdom lacks scrollIntoView (used to keep the dropdown highlight visible)
+  Element.prototype.scrollIntoView = () => {};
 });
 
 const editor = () => screen.getByLabelText('cell editor') as HTMLTextAreaElement;
@@ -290,6 +292,160 @@ describe('MasumeGrid', () => {
       clipboardData: { getData: () => '1,234\t2026年7月6日' },
     });
     expect(onChange).toHaveBeenCalledWith([['1234', '2026-07-06']]);
+  });
+
+  it('filters the select dropdown while typing by default', () => {
+    const { container } = render(
+      <MasumeGrid
+        data={[['']]}
+        columns={[{ title: 'S', type: 'select', options: ['りんご', 'みかん', 'メロン'] }]}
+      />,
+    );
+    const cell = container.querySelector('[data-row="0"][data-col="0"]')!;
+    fireEvent.mouseDown(cell);
+    fireEvent.doubleClick(cell);
+    expect(screen.getAllByRole('option').length).toBe(3);
+    fireEvent.change(editor(), { target: { value: 'み' } });
+    expect(screen.getAllByRole('option').map((el) => el.textContent)).toEqual(['みかん']);
+  });
+
+  it('keeps the full option list while typing when filterable is false', () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <MasumeGrid
+        data={[['']]}
+        columns={[
+          { title: 'S', type: 'select', options: ['りんご', 'みかん', 'メロン'], filterable: false },
+        ]}
+        onChange={onChange}
+      />,
+    );
+    const cell = container.querySelector('[data-row="0"][data-col="0"]')!;
+    fireEvent.mouseDown(cell);
+    fireEvent.doubleClick(cell);
+    fireEvent.change(editor(), { target: { value: 'み' } });
+    const options = screen.getAllByRole('option');
+    expect(options.length).toBe(3); // list not narrowed
+    // Type-ahead: the highlight jumps to the first prefix match.
+    expect(options[1].textContent).toBe('みかん');
+    expect(options[1].getAttribute('aria-selected')).toBe('true');
+    // Strict column: Enter commits the highlighted option.
+    fireEvent.keyDown(editor(), { key: 'Enter' });
+    expect(onChange).toHaveBeenCalledWith([['みかん']]);
+  });
+
+  it('navigates the unfiltered dropdown with arrows when filterable is false', () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <MasumeGrid
+        data={[['']]}
+        columns={[{ title: 'S', type: 'select', options: ['x', 'y'], filterable: false }]}
+        onChange={onChange}
+      />,
+    );
+    const cell = container.querySelector('[data-row="0"][data-col="0"]')!;
+    fireEvent.mouseDown(cell);
+    fireEvent.doubleClick(cell);
+    fireEvent.keyDown(editor(), { key: 'ArrowDown' });
+    fireEvent.keyDown(editor(), { key: 'Enter' });
+    expect(onChange).toHaveBeenCalledWith([['y']]);
+  });
+
+  it('commits typed free text when filterable is false and strict is false', () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <MasumeGrid
+        data={[['']]}
+        columns={[
+          { title: 'S', type: 'select', options: ['x', 'y'], strict: false, filterable: false },
+        ]}
+        onChange={onChange}
+      />,
+    );
+    const cell = container.querySelector('[data-row="0"][data-col="0"]')!;
+    fireEvent.mouseDown(cell);
+    fireEvent.doubleClick(cell);
+    fireEvent.change(editor(), { target: { value: 'z' } });
+    fireEvent.keyDown(editor(), { key: 'Enter' });
+    expect(onChange).toHaveBeenCalledWith([['z']]);
+  });
+
+  it('renders checkbox cells and toggles on glyph click', () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <MasumeGrid data={[['true'], ['']]} columns={[{ title: '✓', type: 'checkbox' }]} onChange={onChange} />,
+    );
+    const boxes = container.querySelectorAll('[data-checkbox]');
+    expect(boxes.length).toBe(2);
+    expect(boxes[0].getAttribute('aria-checked')).toBe('true');
+    expect(boxes[1].getAttribute('aria-checked')).toBe('false');
+    fireEvent.mouseDown(boxes[0]);
+    expect(onChange).toHaveBeenCalledWith([[''], ['']]);
+    onChange.mockClear();
+    fireEvent.mouseDown(boxes[1]);
+    expect(onChange).toHaveBeenCalledWith([['true'], ['true']]);
+  });
+
+  it('does not toggle when clicking the cell outside the glyph', () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <MasumeGrid data={[['true']]} columns={[{ title: '✓', type: 'checkbox' }]} onChange={onChange} />,
+    );
+    fireEvent.mouseDown(container.querySelector('[data-row="0"][data-col="0"]')!);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('toggles all selected checkbox cells with Space', () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <MasumeGrid
+        data={[['true'], ['']]}
+        columns={[{ title: '✓', type: 'checkbox' }]}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.mouseDown(container.querySelector('[data-row="0"][data-col="0"]')!);
+    fireEvent.mouseDown(container.querySelector('[data-row="1"][data-col="0"]')!, { shiftKey: true });
+    fireEvent.keyDown(editor(), { key: ' ' });
+    expect(onChange).toHaveBeenCalledWith([[''], ['true']]);
+  });
+
+  it('never opens the text editor on a checkbox cell', () => {
+    const { container } = render(
+      <MasumeGrid data={[['true']]} columns={[{ title: '✓', type: 'checkbox' }]} />,
+    );
+    const cell = container.querySelector('[data-row="0"][data-col="0"]')!;
+    fireEvent.mouseDown(cell);
+    fireEvent.doubleClick(cell);
+    expect(editor().className).toContain('masume-grid-editor--hidden');
+    fireEvent.keyDown(editor(), { key: 'F2' });
+    expect(editor().className).toContain('masume-grid-editor--hidden');
+  });
+
+  it('normalizes pasted checkbox values and rejects invalid ones', () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <MasumeGrid data={[['']]} columns={[{ title: '✓', type: 'checkbox' }]} onChange={onChange} />,
+    );
+    fireEvent.mouseDown(container.querySelector('[data-row="0"][data-col="0"]')!);
+    fireEvent.paste(editor(), { clipboardData: { getData: () => 'maybe' } });
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.paste(editor(), { clipboardData: { getData: () => 'TRUE' } });
+    expect(onChange).toHaveBeenCalledWith([['true']]);
+  });
+
+  it('does not toggle read-only checkbox cells', () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <MasumeGrid
+        data={[['true']]}
+        columns={[{ title: '✓', type: 'checkbox', readOnly: true }]}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.mouseDown(container.querySelector('[data-checkbox]')!);
+    fireEvent.keyDown(editor(), { key: ' ' });
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it('pastes tab-separated text starting at the active cell', () => {

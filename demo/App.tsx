@@ -27,6 +27,7 @@ function makeData(rows: number): string[][] {
       String((r * 7) % 100),
       STATUSES[r % STATUSES.length],
       iso,
+      r % 3 === 0 ? 'true' : '',
       '',
     ];
   });
@@ -50,8 +51,9 @@ export default function App() {
             { title: 'カテゴリ', width: 110, type: 'select', options: CATEGORY_MASTER },
             { title: '単価', width: 80, type: 'number' },
             { title: '数量', width: 80, type: 'number' },
-            { title: '状態', width: 120, type: 'select', options: STATUSES },
+            { title: '状態', width: 120, type: 'select', options: STATUSES, filterable: false },
             { title: '入荷日', width: 120, type: 'date' },
+            { title: '検品済', width: 70, type: 'checkbox' },
             { title: 'メモ', width: 200 },
           ]
         : undefined,
@@ -135,9 +137,10 @@ export default function App() {
         style={{ height: 480 }}
       />
       <p className="demo-note">
-        300行 × 8列（行は仮想化描画）。「商品コード」列は readOnly、
-        「カテゴリ」「状態」は選択肢型（カテゴリはコード保存・ラベル表示）、
-        「単価」「数量」は数値型（全角・カンマ入り入力も正規化）、「入荷日」は日付型。
+        300行 × 9列（行は仮想化描画）。「商品コード」列は readOnly、
+        「カテゴリ」「状態」は選択肢型（カテゴリはコード保存・ラベル表示、状態は filterable: false で常に全候補表示）、
+        「単価」「数量」は数値型（全角・カンマ入り入力も正規化）、「入荷日」は日付型、
+        「検品済」はチェックボックス型（クリック / Space でトグル）。
         ヘッダーの境界をドラッグすると列幅を変更できます。
       </p>
     </div>

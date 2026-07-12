@@ -87,6 +87,23 @@ export function normalizeDateInput(value: string): string | null {
   return `${y}-${pad(mo)}-${pad(d)}`;
 }
 
+/**
+ * Normalize input for a checkbox cell. Checked is stored as `'true'`,
+ * unchecked as `''`. Accepts common truthy/falsy spellings (TRUE/FALSE,
+ * 1/0, yes/no, on/off, ✓; full-width ok). Returns null for anything else.
+ */
+export function normalizeCheckboxInput(value: string): string | null {
+  const s = toHalfWidth(value).trim().toLowerCase();
+  if (s === '' || s === 'false' || s === '0' || s === 'no' || s === 'off') return '';
+  if (s === 'true' || s === '1' || s === 'yes' || s === 'on' || s === '✓' || s === '☑') return 'true';
+  return null;
+}
+
+/** Whether a stored cell value counts as checked for a checkbox cell. */
+export function isCheckboxChecked(value: string): boolean {
+  return normalizeCheckboxInput(value) === 'true';
+}
+
 function escapeTSVCell(value: string): string {
   return /[\t\n\r"]/.test(value) ? '"' + value.replace(/"/g, '""') + '"' : value;
 }
