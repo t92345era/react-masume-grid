@@ -7,6 +7,7 @@ export type {
   MasumeGridProps,
   NormalizedRange,
   SelectOption,
+  TemplateCellContext,
 } from './types';
 export {
   isCheckboxChecked,

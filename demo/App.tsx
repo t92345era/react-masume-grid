@@ -55,9 +55,43 @@ export default function App() {
             { title: '入荷日', width: 120, type: 'date' },
             { title: '検品済', width: 70, type: 'checkbox' },
             { title: 'メモ', width: 200 },
+            {
+              // テンプレート型(派生表示): row でデータ行を参照し 単価×数量 を表示
+              title: '金額',
+              width: 100,
+              type: 'template',
+              readOnly: true,
+              template: ({ row }) => {
+                const total = Number(data[row]?.[3] || 0) * Number(data[row]?.[4] || 0);
+                return (
+                  <span className={'demo-amount' + (total >= 3000 ? ' demo-amount--high' : '')}>
+                    ¥{total.toLocaleString()}
+                  </span>
+                );
+              },
+            },
+            {
+              // テンプレート型(行アクション): ボタンはネイティブにクリック可能
+              title: '操作',
+              width: 90,
+              type: 'template',
+              readOnly: true,
+              template: ({ row }) => (
+                <button
+                  type="button"
+                  className="demo-row-btn"
+                  onClick={() =>
+                    window.alert(`「${data[row]?.[1] ?? ''}」の詳細を表示（データ行 ${row + 1}）`)
+                  }
+                >
+                  詳細
+                </button>
+              ),
+            },
           ]
         : undefined,
-    [useColumns],
+    // 「金額」「操作」のテンプレートが data を参照するため data にも依存させる
+    [useColumns, data],
   );
 
   const handleSelectionChange = (ranges: NormalizedRange[]) => {
@@ -137,10 +171,12 @@ export default function App() {
         style={{ height: 480 }}
       />
       <p className="demo-note">
-        300行 × 9列（行は仮想化描画）。「商品コード」列は readOnly、
+        300行 × 11列（行は仮想化描画）。「商品コード」列は readOnly、
         「カテゴリ」「状態」は選択肢型（カテゴリはコード保存・ラベル表示、状態は filterable: false で常に全候補表示）、
         「単価」「数量」は数値型（全角・カンマ入り入力も正規化）、「入荷日」は日付型、
-        「検品済」はチェックボックス型（クリック / Space でトグル）。
+        「検品済」はチェックボックス型（クリック / Space でトグル）、
+        「金額」「操作」はテンプレート型（任意のコンポーネントを描画。関数にはデータ行のインデックスが渡されます。
+        「金額」は単価×数量の派生表示 — 単価や数量を編集すると連動して更新、「操作」はボタンでその行を参照）。
         ヘッダーの境界をドラッグすると列幅を変更できます。
       </p>
     </div>

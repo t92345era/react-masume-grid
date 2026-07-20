@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 
 /** Cell values are plain strings. Formatting/parsing is up to the consumer. */
 export type CellValue = string;
@@ -17,14 +17,27 @@ export type CellValue = string;
  * - `checkbox` — centered checkbox; stores `'true'` when checked and `''`
  *              when unchecked; toggled by click or Space; pasted text such
  *              as TRUE/FALSE, 1/0, yes/no is normalized
+ * - `template` — cell content is rendered by the column's `template`
+ *              function; no text editor (copy/paste/delete still act on the
+ *              underlying value)
  */
-export type ColumnType = 'text' | 'number' | 'select' | 'date' | 'checkbox';
+export type ColumnType = 'text' | 'number' | 'select' | 'date' | 'checkbox' | 'template';
 
 export interface SelectOption {
   /** Stored in the data. */
   value: string;
   /** Shown in cells and in the dropdown. Defaults to `value`. */
   label?: string;
+}
+
+/** Argument passed to a 'template' column's `template` function. */
+export interface TemplateCellContext {
+  /** Row index in the `data` array (the data-source index). */
+  row: number;
+  /** Column index. */
+  col: number;
+  /** The cell's stored value. */
+  value: CellValue;
 }
 
 export interface ColumnDef {
@@ -43,6 +56,12 @@ export interface ColumnDef {
    * list (typing then jumps the highlight to the first prefix match).
    */
   filterable?: boolean;
+  /**
+   * For 'template' columns: renders the cell content. Receives the data
+   * row index, column index and stored value. Interactive elements inside
+   * (buttons, links, …) receive clicks natively.
+   */
+  template?: (ctx: TemplateCellContext) => ReactNode;
   /** Header caption. Defaults to spreadsheet-style letters (A, B, C, …). */
   title?: string;
   /** Column width in pixels. Defaults to `defaultColumnWidth`. */

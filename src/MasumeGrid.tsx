@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { CellPos, CellValue, MasumeGridProps } from './types';
+import type { CellPos, CellValue, MasumeGridProps, NormalizedRange } from './types';
 import type { SelRange } from './utils';
 import {
   clamp,
@@ -86,6 +86,9 @@ export function MasumeGrid({
   ]);
   const [editing, setEditing] = useState<EditState | null>(null);
   const [editValue, setEditValue] = useState('');
+  // Source range of the last copy/cut, outlined with "marching ants"
+  // (Excel/Sheets-style) until Escape, paste, or the next edit.
+  const [copyRect, setCopyRect] = useState<NormalizedRange | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportH, setViewportH] = useState(0);
 
@@ -315,12 +318,14 @@ export function MasumeGrid({
       if (!canEditCell(target.col)) return;
       const type = colType(target.col);
       if (type === 'checkbox') return; // toggled by click/Space, never text-edited
+      if (type === 'template') return; // rendered by the column's component
       let initial = mode === 'edit' ? (data[target.row]?.[target.col] ?? '') : '';
       // The native date input only accepts ISO values.
       if (type === 'date') initial = normalizeDateInput(initial) ?? '';
       // Select cells display labels, so editing must start from the label
       // too (commit maps labels back to option values).
       if (type === 'select') initial = optionLabelByValue.get(target.col)?.get(initial) ?? initial;
+      setCopyRect(null); // starting an edit dismisses the marching ants
       setEditing({ row: target.row, col: target.col, mode });
       setEditValue(initial);
       setOptionFilter(null); // dropdown starts unfiltered
@@ -433,9 +438,12 @@ export function MasumeGrid({
     return matrixToTSV(matrix);
   };
 
+  const markCopied = () => setCopyRect(normRanges[normRanges.length - 1]);
+
   const copySelection = async () => {
     if (rowCount === 0 || colCount === 0) return;
     const text = selectionToTSV();
+    markCopied();
     try {
       await navigator.clipboard.writeText(text);
     } catch {
@@ -475,6 +483,7 @@ export function MasumeGrid({
     if (readOnly || rowCount === 0 || colCount === 0) return;
     const matrix = parseClipboardText(text);
     if (matrix.length === 0) return;
+    setCopyRect(null); // pasting dismisses the marching ants
     const nr = normRanges[normRanges.length - 1];
     const srcH = matrix.length;
     const srcW = Math.max(...matrix.map((r) => r.length));
@@ -692,6 +701,10 @@ export function MasumeGrid({
         e.preventDefault();
         startEdit('edit');
         return;
+      case 'Escape':
+        e.preventDefault();
+        setCopyRect(null);
+        return;
       case 'Delete':
       case 'Backspace':
         e.preventDefault();
@@ -719,10 +732,11 @@ export function MasumeGrid({
     // which also makes this work for dead keys and unusual layouts.
     if (e.key.length === 1 && !mod && !e.altKey) {
       const type = colType(active.col);
-      // Date cells edit through the native picker and checkbox cells only
-      // toggle, so the typed character must not land in the textarea.
-      if (type === 'date' || type === 'checkbox') e.preventDefault();
-      if (type === 'checkbox') return;
+      // Date cells edit through the native picker; checkbox cells only
+      // toggle and template cells have no text editor — the typed
+      // character must not land in the textarea.
+      if (type === 'date' || type === 'checkbox' || type === 'template') e.preventDefault();
+      if (type === 'checkbox' || type === 'template') return;
       startEdit('replace');
     }
   };
@@ -758,7 +772,8 @@ export function MasumeGrid({
       // Input arrived before the keydown-triggered state flush (or via a
       // path we did not see, e.g. some IMEs): start editing now.
       const type = colType(active.col);
-      if (!canEditCell(active.col) || type === 'date' || type === 'checkbox') return;
+      if (!canEditCell(active.col) || type === 'date' || type === 'checkbox' || type === 'template')
+        return;
       setEditing({ row: active.row, col: active.col, mode: 'replace' });
     }
     setEditValue(e.target.value);
@@ -787,12 +802,14 @@ export function MasumeGrid({
     if (editingRef.current) return; // native copy inside the editor
     e.preventDefault();
     e.clipboardData.setData('text/plain', selectionToTSV());
+    markCopied();
   };
 
   const handleCut = (e: React.ClipboardEvent) => {
     if (editingRef.current) return;
     e.preventDefault();
     e.clipboardData.setData('text/plain', selectionToTSV());
+    markCopied();
     clearSelectedCells();
   };
 
@@ -850,6 +867,23 @@ export function MasumeGrid({
     if (dateRef.current && dateRef.current.contains(target)) return;
     if (dropdownRef.current && dropdownRef.current.contains(target)) return;
     if (target === containerRef.current) return; // scrollbar area
+
+    // Interactive elements inside a template cell keep their native
+    // behavior (focus, caret, click). The cell still becomes the
+    // selection, but the grid must not steal focus or start a drag.
+    const interactiveEl = target.closest(
+      'button, a, input, select, textarea, label, [role="button"], [contenteditable]',
+    );
+    if (interactiveEl) {
+      const tplCell = target.closest('[data-row]') as HTMLElement | null;
+      if (tplCell && colType(Number(tplCell.dataset.col)) === 'template') {
+        commitEdit();
+        const pos = { row: Number(tplCell.dataset.row), col: Number(tplCell.dataset.col) };
+        setSelection([{ anchor: pos, focus: pos }]);
+        return;
+      }
+    }
+
     e.preventDefault(); // keep focus on the hidden textarea
     taRef.current?.focus({ preventScroll: true });
     if (rowCount === 0 || colCount === 0) return;
@@ -982,7 +1016,8 @@ export function MasumeGrid({
             (!canEditCell(c) ? ' masume-grid-cell--readonly' : '') +
             (type === 'number' ? ' masume-grid-cell--num' : '') +
             (type === 'select' ? ' masume-grid-cell--select' : '') +
-            (type === 'checkbox' ? ' masume-grid-cell--checkbox' : '')
+            (type === 'checkbox' ? ' masume-grid-cell--checkbox' : '') +
+            (type === 'template' ? ' masume-grid-cell--template' : '')
           }
           style={{ width: widths[c], height: rowHeight }}
         >
@@ -993,6 +1028,8 @@ export function MasumeGrid({
               aria-checked={checked}
               className={'masume-grid-checkbox' + (checked ? ' masume-grid-checkbox--on' : '')}
             />
+          ) : type === 'template' ? (
+            (columns?.[c]?.template?.({ row: r, col: c, value: raw }) ?? display)
           ) : (
             display
           )}
@@ -1011,6 +1048,22 @@ export function MasumeGrid({
       </div>,
     );
   }
+
+  // Geometry of the marching-ants overlay; clamped so it stays valid when
+  // rows/columns shrink after the copy. Recomputed from current offsets so
+  // it tracks column resizes.
+  const antsRect = useMemo(() => {
+    if (!copyRect || rowCount === 0 || colCount === 0) return null;
+    if (copyRect.top >= rowCount || copyRect.left >= colCount) return null;
+    const bottom = Math.min(copyRect.bottom, rowCount - 1);
+    const right = Math.min(copyRect.right, colCount - 1);
+    return {
+      top: copyRect.top * rowHeight,
+      left: rowNumW + offsets[copyRect.left],
+      width: offsets[right + 1] - offsets[copyRect.left],
+      height: (bottom - copyRect.top + 1) * rowHeight,
+    };
+  }, [copyRect, rowCount, colCount, rowHeight, rowNumW, offsets]);
 
   const editorPos = editing ?? active;
   const showEditor = rowCount > 0 && colCount > 0;
@@ -1066,6 +1119,7 @@ export function MasumeGrid({
       )}
       <div className="masume-grid-body" style={{ width: totalW, height: totalH }}>
         {rows}
+        {antsRect && <div className="masume-grid-copy-ants" style={antsRect} />}
         {showEditor && (
           <textarea
             ref={taRef}

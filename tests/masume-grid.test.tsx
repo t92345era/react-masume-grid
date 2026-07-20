@@ -468,4 +468,109 @@ describe('MasumeGrid', () => {
       ['Z', 'W'],
     ]);
   });
+
+  it('renders template cells with the data row index', () => {
+    render(
+      <MasumeGrid
+        data={[['a'], ['b']]}
+        columns={[
+          {
+            type: 'template',
+            template: ({ row, value }) => <button type="button">{`${row}:${value}`}</button>,
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText('0:a')).toBeTruthy();
+    expect(screen.getByText('1:b')).toBeTruthy();
+  });
+
+  it('does not open the text editor for template cells', () => {
+    render(
+      <MasumeGrid
+        data={[['x']]}
+        columns={[{ type: 'template', template: ({ value }) => <span>T-{value}</span> }]}
+      />,
+    );
+    const cell = screen.getByText('T-x');
+    fireEvent.mouseDown(cell);
+    fireEvent.doubleClick(cell);
+    expect(editor().className).toContain('masume-grid-editor--hidden');
+    fireEvent.keyDown(editor(), { key: 'F2' });
+    expect(editor().className).toContain('masume-grid-editor--hidden');
+  });
+
+  it('lets buttons inside template cells receive clicks and selects the cell', () => {
+    const onClick = vi.fn();
+    const onSelectionChange = vi.fn();
+    render(
+      <MasumeGrid
+        data={[['a', 'b']]}
+        columns={[
+          {},
+          {
+            type: 'template',
+            template: ({ row }) => (
+              <button type="button" onClick={() => onClick(row)}>
+                Go
+              </button>
+            ),
+          },
+        ]}
+        onSelectionChange={onSelectionChange}
+      />,
+    );
+    const btn = screen.getByText('Go');
+    fireEvent.mouseDown(btn);
+    fireEvent.click(btn);
+    expect(onClick).toHaveBeenCalledWith(0);
+    expect(onSelectionChange).toHaveBeenLastCalledWith([
+      { top: 0, bottom: 0, left: 1, right: 1 },
+    ]);
+  });
+
+  it('outlines the copied range with marching ants and clears it on Escape', () => {
+    const { container } = render(
+      <MasumeGrid
+        data={[
+          ['a', 'b'],
+          ['c', 'd'],
+        ]}
+      />,
+    );
+    const ants = () => container.querySelector('.masume-grid-copy-ants') as HTMLElement | null;
+    expect(ants()).toBeNull();
+    fireEvent.mouseDown(screen.getByText('a'));
+    fireEvent.keyDown(editor(), { key: 'ArrowRight', shiftKey: true }); // A1:B1
+    fireEvent.copy(editor(), { clipboardData: { setData: vi.fn() } });
+    const el = ants()!;
+    expect(el).toBeTruthy();
+    // rowNumberWidth 48 + two 120px columns, one 28px row
+    expect(el.style.top).toBe('0px');
+    expect(el.style.left).toBe('48px');
+    expect(el.style.width).toBe('240px');
+    expect(el.style.height).toBe('28px');
+    fireEvent.keyDown(editor(), { key: 'Escape' });
+    expect(ants()).toBeNull();
+  });
+
+  it('clears the marching-ants outline after paste', () => {
+    const { container } = render(<MasumeGrid data={[['a', 'b']]} onChange={vi.fn()} />);
+    const ants = () => container.querySelector('.masume-grid-copy-ants');
+    fireEvent.mouseDown(screen.getByText('a'));
+    fireEvent.copy(editor(), { clipboardData: { setData: vi.fn() } });
+    expect(ants()).toBeTruthy();
+    fireEvent.paste(editor(), { clipboardData: { getData: () => 'X' } });
+    expect(ants()).toBeNull();
+  });
+
+  it('clears the marching-ants outline when an edit starts', () => {
+    const { container } = render(<MasumeGrid data={[['a', 'b']]} />);
+    const ants = () => container.querySelector('.masume-grid-copy-ants');
+    fireEvent.mouseDown(screen.getByText('a'));
+    fireEvent.copy(editor(), { clipboardData: { setData: vi.fn() } });
+    expect(ants()).toBeTruthy();
+    fireEvent.doubleClick(screen.getByText('b'));
+    expect(ants()).toBeNull();
+  });
 });

@@ -5,7 +5,7 @@
 軽量・汎用の React スプレッドシートコンポーネント。依存は React のみ（gzip 約 5KB）。
 
 - **グリッド表示** — 行番号・ヘッダーの表示/非表示切り替え、列幅指定、ドラッグでの列幅リサイズ、行の仮想化描画（数万行でも軽快）
-- **セル型** — 文字列 / 数値（全角・カンマ正規化）/ 選択肢（マスタデータのプルダウン、コード保存・ラベル表示）/ 日付（カレンダー入力、和式表記の貼り付け正規化）/ チェックボックス（クリック / Space でトグル）
+- **セル型** — 文字列 / 数値（全角・カンマ正規化）/ 選択肢（マスタデータのプルダウン、コード保存・ラベル表示）/ 日付（カレンダー入力、和式表記の貼り付け正規化）/ チェックボックス（クリック / Space でトグル）/ テンプレート（任意のコンポーネントをセルに描画）
 - **セル編集** — ダブルクリック / F2 / キー入力で編集開始。**日本語 IME 完全対応**（IMEオンで「A」を打つとセルが編集状態になり「あ」が入力される）
 - **範囲選択** — マウスドラッグ、Shift+クリック/矢印キーで拡張、Ctrl(⌘)+クリックで複数範囲追加。行・列ヘッダークリックで行/列選択、左上コーナーで全選択
 - **コピー＆ペースト** — Ctrl(⌘)+C / X / V。Excel・Google スプレッドシートと相互運用できる TSV 形式（改行・タブ・引用符を含むセルにも対応、単一セルのタイル貼り付けも可）
@@ -53,7 +53,7 @@ function App() {
 | Prop | 型 | 既定値 | 説明 |
 | --- | --- | --- | --- |
 | `data` | `string[][]` | （必須） | グリッドの内容。行の長さは不揃いでも可 |
-| `columns` | `ColumnDef[]` | — | `{ title?, width?, readOnly?, resizable?, type?, options?, strict?, filterable? }` の配列。省略時は data から列数を導出 |
+| `columns` | `ColumnDef[]` | — | `{ title?, width?, readOnly?, resizable?, type?, options?, strict?, filterable?, template? }` の配列。省略時は data から列数を導出 |
 | `onChange` | `(next: string[][]) => void` | — | 編集・貼り付け・削除のたびに新しい 2 次元配列で呼ばれる |
 | `onCellChange` | `(row, col, value) => void` | — | 変更セルごとに呼ばれる。`onChange` の代わり/併用可 |
 | `onSelectionChange` | `(ranges: NormalizedRange[]) => void` | — | 選択変更時（`{top,left,bottom,right}` の配列） |
@@ -87,6 +87,8 @@ const columns: ColumnDef[] = [
   { title: '状態', type: 'select', options: ['在庫あり', '取り寄せ'] }, // 文字列だけでも可
   { title: '入荷日', type: 'date' },
   { title: '検品済', type: 'checkbox' },
+  { title: '操作', type: 'template', readOnly: true,
+    template: ({ row, value }) => <button onClick={() => openDetail(row)}>詳細</button> },
 ];
 ```
 
@@ -97,8 +99,59 @@ const columns: ColumnDef[] = [
 | `select` | 絞り込み付きプルダウン | ↑↓で候補移動、Enter/クリックで確定、文字入力で絞り込み。Alt+↓でも開く。`options` は `string` または `{value, label}`（value を保存し label を表示）。既定では options 外の値を拒否（`strict: false` で自由入力許可）。`filterable: false` で絞り込みを無効化（常に全候補を表示し、文字入力は先頭一致の候補へハイライトを移動） |
 | `date` | ネイティブの日付ピッカー | `YYYY-MM-DD` で保存。貼り付け時は `2026/7/6`・`2026年7月6日`・`20260706`・全角も正規化。無効な日付は拒否。Alt+↓でカレンダーを開く |
 | `checkbox` | トグル（テキスト編集なし） | チェック時 `'true'`・未チェック時 `''` を保存。チェックボックスのクリックまたは Space でトグル（Space は選択中のチェックボックスセルすべてをトグル）。貼り付け時は `TRUE`/`FALSE`・`1`/`0`・`yes`/`no` などを正規化し、それ以外は**拒否** |
+| `template` | なし（カスタム描画） | 列定義の `template` 関数がセル内容を描画。引数は `{ row, col, value }`（`row` は `data` 上のデータ行インデックス）。テンプレート内のボタンや入力欄などはネイティブにクリック・操作可能。コピーは元の値を出力し、貼り付け・Delete も元の値に作用（防ぎたい場合は `readOnly: true`） |
 
 正規化・検証は**編集確定と貼り付けの両方**に適用されます。無効な値のセルは変更されずスキップされます。正規化関数は `normalizeNumberInput` / `normalizeDateInput` / `normalizeCheckboxInput`（および `isCheckboxChecked`）としてエクスポートしているので、アプリ側のバリデーションにも再利用できます。
+
+### テンプレート型セル
+
+`type: 'template'` を指定すると、セルの描画を任意のコンポーネントに委ねられます。列定義の `template` 関数は描画対象のセルごとに呼ばれ（行は仮想化されるため画面内のセルのみ）、引数として `TemplateCellContext` を受け取ります:
+
+| フィールド | 意味 |
+| --- | --- |
+| `row` | `data` 配列上の行インデックス（データソース上のインデックス） |
+| `col` | 列インデックス |
+| `value` | セルに保存されている文字列値 |
+
+```tsx
+import type { ColumnDef } from 'react-masume-grid';
+
+const [data, setData] = useState<string[][]>(initialData); // [商品名, 単価, 数量]
+
+const columns = useMemo<ColumnDef[]>(
+  () => [
+    { title: '商品名' },
+    { title: '単価', type: 'number' },
+    { title: '数量', type: 'number' },
+
+    // 派生表示: `row` を使って data から同じ行の他セルを参照。
+    // `columns` は data に依存するため、data の変更時に再計算する。
+    {
+      title: '金額', width: 100, type: 'template', readOnly: true,
+      template: ({ row }) => {
+        const total = Number(data[row]?.[1] || 0) * Number(data[row]?.[2] || 0);
+        return <span style={{ marginLeft: 'auto', padding: '0 6px' }}>¥{total.toLocaleString()}</span>;
+      },
+    },
+
+    // 行アクション: テンプレート内のボタンはネイティブにクリックできる。
+    {
+      title: '操作', width: 90, type: 'template', readOnly: true,
+      template: ({ row }) => (
+        <button type="button" onClick={() => openDetail(row)}>詳細</button>
+      ),
+    },
+  ],
+  [data],
+);
+```
+
+補足:
+
+- テンプレート型セルに**テキストエディタはありません** — 文字キー・F2・ダブルクリックで編集は始まりません。キーボード移動・範囲選択・コピーは通常どおり動作します。
+- テンプレートセルのクリックでセル選択は移動します。セル内のインタラクティブ要素（`button`・`a`・`input`・`select`・`textarea`・`label`・`[role="button"]`・`[contenteditable]`）は、グリッドにフォーカスを奪われずネイティブに操作できます。
+- コピーされるのは描画結果ではなく**保存値**（`data[row][col]`）です。貼り付け・Delete も保存値に作用するため、上の例のような表示専用列には `readOnly: true` を指定してください。
+- セルは `padding: 0` の flex コンテナ（`align-items: center`）として描画され、コンポーネントがセル全域を制御できます。高さが足りない場合は `rowHeight` を調整してください。
 
 ## キーボード操作
 
