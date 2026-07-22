@@ -10,6 +10,10 @@ A lightweight, generic React spreadsheet component. React is the only dependency
 - **Range selection** — mouse drag, extend with Shift+click / Shift+arrows, add multiple ranges with Ctrl(⌘)+click. Click row/column headers to select whole rows/columns, the top-left corner to select all
 - **Copy & paste** — Ctrl(⌘)+C / X / V. TSV format interoperable with Excel and Google Sheets (handles cells containing newlines, tabs and quotes; tiles single-cell paste across a selection)
 
+## Demo
+
+https://t92345era.github.io/react-masume-grid/
+
 ## Installation
 
 ```sh
