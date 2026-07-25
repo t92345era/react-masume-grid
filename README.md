@@ -9,6 +9,7 @@ A lightweight, generic React spreadsheet component. React is the only dependency
 - **Cell editing** — start editing by double-click, F2, or just typing. **Full IME support**: with a Japanese IME on, pressing "A" opens the editor and types 「あ」 right into the cell
 - **Range selection** — mouse drag, extend with Shift+click / Shift+arrows, add multiple ranges with Ctrl(⌘)+click. Click row/column headers to select whole rows/columns, the top-left corner to select all
 - **Copy & paste** — Ctrl(⌘)+C / X / V. TSV format interoperable with Excel and Google Sheets (handles cells containing newlines, tabs and quotes; tiles single-cell paste across a selection)
+- **Accessible** — ARIA grid semantics (`grid` / `row` / `gridcell` roles, 1-based row/column indices that survive row virtualization, selection and read-only states) so screen readers can follow the grid
 
 ## Demo
 
@@ -57,11 +58,12 @@ When `columns` is omitted, the column count is derived from `data` and headers s
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
 | `data` | `string[][]` | (required) | Grid contents. Rows may be ragged |
-| `columns` | `ColumnDef[]` | — | Array of `{ title?, width?, readOnly?, resizable?, type?, options?, strict?, filterable?, template? }`. When omitted, the column count is derived from data |
+| `columns` | `ColumnDef[]` | — | Array of `{ title?, width?, readOnly?, resizable?, type?, options?, strict?, filterable?, template?, format? }`. When omitted, the column count is derived from data |
 | `onChange` | `(next: string[][]) => void` | — | Called with a new 2D array on every edit / paste / delete |
 | `onCellChange` | `(row, col, value) => void` | — | Called once per changed cell. Use instead of (or with) `onChange` |
 | `onSelectionChange` | `(ranges: NormalizedRange[]) => void` | — | Called when the selection changes (array of `{top,left,bottom,right}`) |
 | `onColumnResize` | `(col, width) => void` | — | Called when a column resize drag finishes (final width in px) |
+| `getCellProps` | `(row, col, value) => CellProps` | — | Per-cell overrides: `{ readOnly?, className?, style? }`. See [Per-cell overrides](#per-cell-overrides) |
 | `showRowNumbers` | `boolean` | `true` | Show the row-number column |
 | `showHeader` | `boolean` | `true` | Show the header row |
 | `readOnly` | `boolean` | `false` | Disallow editing (selection & copy still work) |
@@ -75,6 +77,25 @@ When `columns` is omitted, the column count is derived from `data` and headers s
 The data is fully **controlled**: the grid never changes unless you implement `onChange`.
 
 Column widths are the one uncontrolled exception — widths set by dragging are kept inside the component (taking precedence over `ColumnDef.width`). Persist them via `onColumnResize` if needed.
+
+### Per-cell overrides
+
+`getCellProps(row, col, value)` lets you override individual cells — lock them against editing, or style them (e.g. validation-error highlighting):
+
+```tsx
+<MasumeGrid
+  data={data}
+  onChange={setData}
+  getCellProps={(row, col, value) => {
+    if (errors.has(`${row}:${col}`)) return { className: 'cell-error' };
+    if (data[row]?.[0] === 'LOCKED') return { readOnly: true, style: { color: '#999' } };
+  }}
+/>
+```
+
+- `readOnly` applies to edits, paste and delete alike (on top of the grid-level and column-level `readOnly`).
+- `className` is appended to the cell element; `style` is merged in (the grid-managed `width`/`height` cannot be overridden).
+- It is called for every visible cell on each render — keep it cheap (a lookup, not a computation).
 
 ## Cell types
 
@@ -106,6 +127,19 @@ const columns: ColumnDef[] = [
 | `template` | None (custom rendering) | Cell content is rendered by the column's `template` function, which receives `{ row, col, value }` — `row` is the index into `data`. Interactive elements inside (buttons, inputs, …) receive clicks natively. Copy still emits the underlying value; paste/delete still write it (set `readOnly: true` to prevent that) |
 
 Normalization and validation apply to **both edit commits and paste**. Cells with invalid values are skipped and keep their old value. The normalizers are exported as `normalizeNumberInput` / `normalizeDateInput` / `normalizeCheckboxInput` (plus `isCheckboxChecked`) for reuse in your own validation.
+
+### Display formatting
+
+`ColumnDef.format` formats the **display only** — the stored data, the editor and copy/paste always use the raw string value, so clipboard interop with Excel stays intact. It applies to `text`, `number` and `date` columns and is never called for empty cells. `formatThousands` (thousands separators, full-width aware) ships with the library:
+
+```tsx
+import { formatThousands, type ColumnDef } from 'react-masume-grid';
+
+const columns: ColumnDef[] = [
+  { title: 'Price', type: 'number', format: formatThousands },     // 1234567 → 1,234,567
+  { title: 'Arrival', type: 'date', format: (v) => v.replaceAll('-', '/') }, // 2026-07-06 → 2026/07/06
+];
+```
 
 ### Template cells
 
@@ -202,7 +236,7 @@ npm run build      # library build into dist/ (ESM + CJS + d.ts + CSS)
 
 ## Limitations (current version)
 
-- Internal data is always strings (numbers/dates included; display formatting such as thousands separators is future work)
+- Internal data is always strings (numbers/dates included; use `ColumnDef.format` for display formatting such as thousands separators)
 - Columns are not virtualized — mind performance beyond a few hundred columns
 - No undo / redo (the `onChange`-based design lets the host app manage history)
 - No merged cells, formulas, or double-click auto-fit for column widths

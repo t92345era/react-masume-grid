@@ -1,6 +1,7 @@
 export { MasumeGrid } from './MasumeGrid';
 export type {
   CellPos,
+  CellProps,
   CellValue,
   ColumnDef,
   ColumnType,
@@ -10,6 +11,7 @@ export type {
   TemplateCellContext,
 } from './types';
 export {
+  formatThousands,
   isCheckboxChecked,
   normalizeCheckboxInput,
   normalizeDateInput,

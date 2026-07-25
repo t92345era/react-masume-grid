@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -46,6 +47,7 @@ export function MasumeGrid({
   onCellChange,
   onSelectionChange,
   onColumnResize,
+  getCellProps,
   showRowNumbers = true,
   showHeader = true,
   readOnly = false,
@@ -138,8 +140,11 @@ export function MasumeGrid({
   }, []);
 
   const canEditCell = useCallback(
-    (col: number) => !readOnly && !columns?.[col]?.readOnly,
-    [readOnly, columns],
+    (row: number, col: number) =>
+      !readOnly &&
+      !columns?.[col]?.readOnly &&
+      !getCellProps?.(row, col, data[row]?.[col] ?? '')?.readOnly,
+    [readOnly, columns, getCellProps, data],
   );
 
   // ----- cell types -----------------------------------------------------
@@ -213,7 +218,7 @@ export function MasumeGrid({
     (changes: CellChange[]) => {
       const applicable: CellChange[] = [];
       for (const ch of changes) {
-        if (!canEditCell(ch.col)) continue;
+        if (!canEditCell(ch.row, ch.col)) continue;
         const value = coerceValue(ch.col, ch.value);
         if (value === null) continue; // invalid for the column type
         if ((data[ch.row]?.[ch.col] ?? '') === value) continue; // no-op write
@@ -315,7 +320,7 @@ export function MasumeGrid({
     (mode: EditState['mode'], pos?: CellPos) => {
       const target = pos ?? active;
       if (rowCount === 0 || colCount === 0) return;
-      if (!canEditCell(target.col)) return;
+      if (!canEditCell(target.row, target.col)) return;
       const type = colType(target.col);
       if (type === 'checkbox') return; // toggled by click/Space, never text-edited
       if (type === 'template') return; // rendered by the column's component
@@ -772,7 +777,12 @@ export function MasumeGrid({
       // Input arrived before the keydown-triggered state flush (or via a
       // path we did not see, e.g. some IMEs): start editing now.
       const type = colType(active.col);
-      if (!canEditCell(active.col) || type === 'date' || type === 'checkbox' || type === 'template')
+      if (
+        !canEditCell(active.row, active.col) ||
+        type === 'date' ||
+        type === 'checkbox' ||
+        type === 'template'
+      )
         return;
       setEditing({ row: active.row, col: active.col, mode: 'replace' });
     }
@@ -969,11 +979,24 @@ export function MasumeGrid({
 
   // ----- rendering --------------------------------------------------------
 
+  // ARIA row/column indices are 1-based and include the header row and the
+  // row-number column, so assistive tech announces positions that match
+  // what a sighted user sees.
+  const gridId = useId();
+  const activeCellId = `${gridId}active-cell`;
+  const ariaRowBase = showHeader ? 2 : 1;
+  const ariaColBase = showRowNumbers ? 2 : 1;
+
   const startRow = Math.max(0, Math.floor(scrollTop / rowHeight) - OVERSCAN);
   const endRow = Math.min(
     rowCount,
     Math.ceil((scrollTop + Math.max(0, viewportH - headerH)) / rowHeight) + OVERSCAN,
   );
+
+  // The active cell can be virtualized away; only reference its id while
+  // it is actually in the DOM.
+  const activeCellRendered =
+    rowCount > 0 && colCount > 0 && active.row >= startRow && active.row < endRow;
 
   const isColSelected = (c: number) => normRanges.some((r) => c >= r.left && c <= r.right);
   const isRowSelected = (r: number) => normRanges.some((nr) => r >= nr.top && r <= nr.bottom);
@@ -986,6 +1009,8 @@ export function MasumeGrid({
         <div
           key="rownum"
           data-rownum={r}
+          role="rowheader"
+          aria-colindex={1}
           className={'masume-grid-rownum' + (isRowSelected(r) ? ' masume-grid-rownum--sel' : '')}
           style={{ width: rowNumW, height: rowHeight }}
         >
@@ -1000,26 +1025,38 @@ export function MasumeGrid({
       const isActive = r === active.row && c === active.col;
       const type = colType(c);
       const raw = data[r]?.[c] ?? '';
-      const display = type === 'select' ? (optionLabelByValue.get(c)?.get(raw) ?? raw) : raw;
+      const extra = getCellProps?.(r, c, raw) ?? undefined;
+      const editable = !readOnly && !columns?.[c]?.readOnly && !extra?.readOnly;
+      const format = columns?.[c]?.format;
+      const display =
+        type === 'select'
+          ? (optionLabelByValue.get(c)?.get(raw) ?? raw)
+          : format && raw !== '' && type !== 'checkbox' && type !== 'template'
+            ? format(raw)
+            : raw;
       const checked = type === 'checkbox' && isCheckboxChecked(raw);
       cells.push(
         <div
           key={c}
           data-row={r}
           data-col={c}
+          id={isActive ? activeCellId : undefined}
           role="gridcell"
           aria-selected={selected}
+          aria-colindex={c + ariaColBase}
+          aria-readonly={editable ? undefined : true}
           className={
             'masume-grid-cell' +
             (selected ? ' masume-grid-cell--sel' : '') +
             (isActive ? ' masume-grid-cell--active' : '') +
-            (!canEditCell(c) ? ' masume-grid-cell--readonly' : '') +
+            (!editable ? ' masume-grid-cell--readonly' : '') +
             (type === 'number' ? ' masume-grid-cell--num' : '') +
             (type === 'select' ? ' masume-grid-cell--select' : '') +
             (type === 'checkbox' ? ' masume-grid-cell--checkbox' : '') +
-            (type === 'template' ? ' masume-grid-cell--template' : '')
+            (type === 'template' ? ' masume-grid-cell--template' : '') +
+            (extra?.className ? ' ' + extra.className : '')
           }
-          style={{ width: widths[c], height: rowHeight }}
+          style={{ ...extra?.style, width: widths[c], height: rowHeight }}
         >
           {type === 'checkbox' ? (
             <span
@@ -1041,6 +1078,7 @@ export function MasumeGrid({
       <div
         key={r}
         role="row"
+        aria-rowindex={r + ariaRowBase}
         className="masume-grid-row"
         style={{ top: r * rowHeight, width: totalW, height: rowHeight }}
       >
@@ -1074,8 +1112,10 @@ export function MasumeGrid({
     <div
       ref={containerRef}
       role="grid"
-      aria-rowcount={rowCount}
-      aria-colcount={colCount}
+      aria-rowcount={rowCount + (showHeader ? 1 : 0)}
+      aria-colcount={colCount + (showRowNumbers ? 1 : 0)}
+      aria-multiselectable={true}
+      aria-readonly={readOnly ? true : undefined}
       className={
         'masume-grid' +
         (resizingCol !== null ? ' masume-grid--resizing' : '') +
@@ -1087,10 +1127,17 @@ export function MasumeGrid({
       onDoubleClick={handleDoubleClick}
     >
       {showHeader && (
-        <div className="masume-grid-head" style={{ width: totalW, height: headerH }}>
+        <div
+          role="row"
+          aria-rowindex={1}
+          className="masume-grid-head"
+          style={{ width: totalW, height: headerH }}
+        >
           {showRowNumbers && (
             <div
               data-corner
+              role="columnheader"
+              aria-colindex={1}
               className="masume-grid-corner"
               style={{ width: rowNumW, height: headerH }}
             />
@@ -1099,6 +1146,8 @@ export function MasumeGrid({
             <div
               key={c}
               data-hcol={c}
+              role="columnheader"
+              aria-colindex={c + ariaColBase}
               className={'masume-grid-hcell' + (isColSelected(c) ? ' masume-grid-hcell--sel' : '')}
               style={{ width: widths[c], height: headerH }}
             >
@@ -1117,7 +1166,7 @@ export function MasumeGrid({
           ))}
         </div>
       )}
-      <div className="masume-grid-body" style={{ width: totalW, height: totalH }}>
+      <div role="rowgroup" className="masume-grid-body" style={{ width: totalW, height: totalH }}>
         {rows}
         {antsRect && <div className="masume-grid-copy-ants" style={antsRect} />}
         {showEditor && (
@@ -1139,7 +1188,7 @@ export function MasumeGrid({
             onCut={handleCut}
             onPaste={handlePaste}
             onBlur={handleEditorBlur}
-            readOnly={!editing && !canEditCell(active.col)}
+            readOnly={!editing && !canEditCell(active.row, active.col)}
             inputMode={colType(editorPos.col) === 'number' ? 'decimal' : undefined}
             wrap="off"
             rows={1}
@@ -1147,6 +1196,7 @@ export function MasumeGrid({
             autoCapitalize="off"
             autoCorrect="off"
             aria-label="cell editor"
+            aria-activedescendant={activeCellRendered ? activeCellId : undefined}
           />
         )}
         {editing && editingIsDate && (

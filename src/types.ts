@@ -62,6 +62,15 @@ export interface ColumnDef {
    * (buttons, links, …) receive clicks natively.
    */
   template?: (ctx: TemplateCellContext) => ReactNode;
+  /**
+   * Display-only formatter for 'text', 'number' and 'date' columns: the
+   * stored value is passed in and the returned string is shown in the cell.
+   * The stored data, the editor and copy/paste always use the raw value.
+   * Ignored for 'select' (shows labels), 'checkbox' and 'template' columns,
+   * and never called for empty cells. See the exported `formatThousands`
+   * helper for thousands separators on number columns.
+   */
+  format?: (value: CellValue) => string;
   /** Header caption. Defaults to spreadsheet-style letters (A, B, C, …). */
   title?: string;
   /** Column width in pixels. Defaults to `defaultColumnWidth`. */
@@ -73,6 +82,19 @@ export interface ColumnDef {
    * Overrides the grid-level `resizableColumns`.
    */
   resizable?: boolean;
+}
+
+/** Per-cell overrides returned by `MasumeGridProps.getCellProps`. */
+export interface CellProps {
+  /** Disallow editing this cell (in addition to grid/column `readOnly`). */
+  readOnly?: boolean;
+  /** Extra class name(s) appended to the cell element. */
+  className?: string;
+  /**
+   * Extra inline styles merged into the cell element (the grid-managed
+   * `width`/`height` cannot be overridden).
+   */
+  style?: CSSProperties;
 }
 
 export interface CellPos {
@@ -104,6 +126,13 @@ export interface MasumeGridProps {
   onSelectionChange?: (ranges: NormalizedRange[]) => void;
   /** Called when a column resize drag finishes, with the final width in pixels. */
   onColumnResize?: (col: number, width: number) => void;
+  /**
+   * Per-cell overrides: return `readOnly`, `className` and/or `style` for a
+   * cell (e.g. validation-error highlighting, locking individual cells).
+   * Called for visible cells on every render — keep it cheap. `readOnly`
+   * applies to edits, paste and delete alike.
+   */
+  getCellProps?: (row: number, col: number, value: CellValue) => CellProps | null | undefined;
   /** Show the row-number column. Default: true. */
   showRowNumbers?: boolean;
   /** Show the column header row. Default: true. */

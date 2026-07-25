@@ -9,6 +9,7 @@
 - **セル編集** — ダブルクリック / F2 / キー入力で編集開始。**日本語 IME 完全対応**（IMEオンで「A」を打つとセルが編集状態になり「あ」が入力される）
 - **範囲選択** — マウスドラッグ、Shift+クリック/矢印キーで拡張、Ctrl(⌘)+クリックで複数範囲追加。行・列ヘッダークリックで行/列選択、左上コーナーで全選択
 - **コピー＆ペースト** — Ctrl(⌘)+C / X / V。Excel・Google スプレッドシートと相互運用できる TSV 形式（改行・タブ・引用符を含むセルにも対応、単一セルのタイル貼り付けも可）
+- **アクセシビリティ** — ARIA グリッドセマンティクス（`grid` / `row` / `gridcell` ロール、行仮想化でも維持される 1 始まりの行・列インデックス、選択・読み取り専用状態）でスクリーンリーダーに対応
 
 ## デモ
 
@@ -57,11 +58,12 @@ function App() {
 | Prop | 型 | 既定値 | 説明 |
 | --- | --- | --- | --- |
 | `data` | `string[][]` | （必須） | グリッドの内容。行の長さは不揃いでも可 |
-| `columns` | `ColumnDef[]` | — | `{ title?, width?, readOnly?, resizable?, type?, options?, strict?, filterable?, template? }` の配列。省略時は data から列数を導出 |
+| `columns` | `ColumnDef[]` | — | `{ title?, width?, readOnly?, resizable?, type?, options?, strict?, filterable?, template?, format? }` の配列。省略時は data から列数を導出 |
 | `onChange` | `(next: string[][]) => void` | — | 編集・貼り付け・削除のたびに新しい 2 次元配列で呼ばれる |
 | `onCellChange` | `(row, col, value) => void` | — | 変更セルごとに呼ばれる。`onChange` の代わり/併用可 |
 | `onSelectionChange` | `(ranges: NormalizedRange[]) => void` | — | 選択変更時（`{top,left,bottom,right}` の配列） |
 | `onColumnResize` | `(col, width) => void` | — | 列幅ドラッグの確定時（最終幅 px） |
+| `getCellProps` | `(row, col, value) => CellProps` | — | セル単位の上書き: `{ readOnly?, className?, style? }`。[セル単位の上書き](#セル単位の上書き)を参照 |
 | `showRowNumbers` | `boolean` | `true` | 行番号列の表示 |
 | `showHeader` | `boolean` | `true` | ヘッダー行の表示 |
 | `readOnly` | `boolean` | `false` | 編集禁止（選択・コピーは可能） |
@@ -75,6 +77,25 @@ function App() {
 データは**制御コンポーネント**方式です。`onChange` を実装しない限りグリッドは変化しません。
 
 列幅のみ例外的に非制御で、ドラッグした幅はコンポーネント内部に保持されます（`ColumnDef.width` より優先）。幅を永続化したい場合は `onColumnResize` で保存してください。
+
+### セル単位の上書き
+
+`getCellProps(row, col, value)` で個々のセルを上書きできます。編集ロックや、バリデーションエラーのハイライトなどに使えます:
+
+```tsx
+<MasumeGrid
+  data={data}
+  onChange={setData}
+  getCellProps={(row, col, value) => {
+    if (errors.has(`${row}:${col}`)) return { className: 'cell-error' };
+    if (data[row]?.[0] === 'LOCKED') return { readOnly: true, style: { color: '#999' } };
+  }}
+/>
+```
+
+- `readOnly` は編集・貼り付け・Delete のすべてに適用されます（グリッド全体・列単位の `readOnly` に追加する形）。
+- `className` はセル要素に追記され、`style` はマージされます（グリッドが管理する `width` / `height` は上書きできません）。
+- 描画のたびに画面内の全セルで呼ばれるため、軽い処理（ルックアップ程度）にしてください。
 
 ## セル型
 
@@ -106,6 +127,19 @@ const columns: ColumnDef[] = [
 | `template` | なし（カスタム描画） | 列定義の `template` 関数がセル内容を描画。引数は `{ row, col, value }`（`row` は `data` 上のデータ行インデックス）。テンプレート内のボタンや入力欄などはネイティブにクリック・操作可能。コピーは元の値を出力し、貼り付け・Delete も元の値に作用（防ぎたい場合は `readOnly: true`） |
 
 正規化・検証は**編集確定と貼り付けの両方**に適用されます。無効な値のセルは変更されずスキップされます。正規化関数は `normalizeNumberInput` / `normalizeDateInput` / `normalizeCheckboxInput`（および `isCheckboxChecked`）としてエクスポートしているので、アプリ側のバリデーションにも再利用できます。
+
+### 表示フォーマット
+
+`ColumnDef.format` は**表示だけ**をフォーマットします。保存データ・編集エディタ・コピー＆ペーストは常に元の文字列値を使うため、Excel とのクリップボード互換性は保たれます。対象は `text` / `number` / `date` 列で、空セルでは呼ばれません。桁区切り用の `formatThousands`（全角対応）を同梱しています:
+
+```tsx
+import { formatThousands, type ColumnDef } from 'react-masume-grid';
+
+const columns: ColumnDef[] = [
+  { title: '単価', type: 'number', format: formatThousands },     // 1234567 → 1,234,567
+  { title: '入荷日', type: 'date', format: (v) => v.replaceAll('-', '/') }, // 2026-07-06 → 2026/07/06
+];
+```
 
 ### テンプレート型セル
 
@@ -202,7 +236,7 @@ npm run build      # dist/ へライブラリビルド (ESM + CJS + d.ts + CSS)
 
 ## 制限事項（現バージョン）
 
-- 内部データは常に文字列（数値・日付も文字列で保持。表示用の書式付け（桁区切り等）は今後の課題）
+- 内部データは常に文字列（数値・日付も文字列で保持。桁区切り等の表示書式は `ColumnDef.format` で対応可能）
 - 列は仮想化していないため、数百列を超える場合は性能に注意
 - アンドゥ / リドゥは未実装（`onChange` ベースなので利用側で履歴管理が可能）
 - セル結合、数式、列幅ダブルクリックでの自動フィットは未対応

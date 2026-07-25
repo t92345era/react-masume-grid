@@ -76,3 +76,15 @@ body {
   color: #8a93a0;
   margin-top: 10px;
 }
+
+/* getCellProps demo: locked cells (inspected rows) and warning cells (qty 0) */
+.demo-cell-locked {
+  background: #f4f5f7;
+  color: #9aa2ad;
+}
+
+.demo-cell-warn {
+  background: #fdecec;
+  color: #c0392b;
+  font-weight: 600;
+}

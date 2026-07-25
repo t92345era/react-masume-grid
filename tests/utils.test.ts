@@ -3,6 +3,7 @@ import {
   clamp,
   colName,
   columnOffsets,
+  formatThousands,
   isCheckboxChecked,
   matrixToTSV,
   normalizeCheckboxInput,
@@ -175,5 +176,24 @@ describe('matrixToTSV', () => {
       ['with"quote', '', '日本語'],
     ];
     expect(parseClipboardText(matrixToTSV(matrix))).toEqual(matrix);
+  });
+});
+
+describe('formatThousands', () => {
+  it('groups integer digits with commas', () => {
+    expect(formatThousands('1234567')).toBe('1,234,567');
+    expect(formatThousands('123')).toBe('123');
+    expect(formatThousands('-1234.5')).toBe('-1,234.5');
+    expect(formatThousands('+1000')).toBe('+1,000');
+  });
+
+  it('normalizes full-width input before grouping', () => {
+    expect(formatThousands('１２３４')).toBe('1,234');
+  });
+
+  it('returns non-numeric and empty values unchanged', () => {
+    expect(formatThousands('abc')).toBe('abc');
+    expect(formatThousands('')).toBe('');
+    expect(formatThousands('2024-01-05')).toBe('2024-01-05');
   });
 });

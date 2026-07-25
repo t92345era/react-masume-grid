@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { MasumeGrid } from '../src';
+import { MasumeGrid, formatThousands } from '../src';
 
 beforeAll(() => {
   // jsdom lacks ResizeObserver
@@ -572,5 +572,122 @@ describe('MasumeGrid', () => {
     expect(ants()).toBeTruthy();
     fireEvent.doubleClick(screen.getByText('b'));
     expect(ants()).toBeNull();
+  });
+
+  it('blocks editing, delete and paste on cells locked via getCellProps', () => {
+    const onChange = vi.fn();
+    render(
+      <MasumeGrid
+        data={[['a', 'b']]}
+        onChange={onChange}
+        getCellProps={(_row, col) => (col === 0 ? { readOnly: true } : undefined)}
+      />,
+    );
+    const cell = screen.getByText('a');
+    fireEvent.mouseDown(cell);
+    fireEvent.doubleClick(cell);
+    expect(editor().className).toContain('masume-grid-editor--hidden');
+    fireEvent.keyDown(editor(), { key: 'Delete' });
+    expect(onChange).not.toHaveBeenCalled();
+    // Paste starting at the locked cell skips it but writes the rest.
+    fireEvent.paste(editor(), { clipboardData: { getData: () => 'X\tY' } });
+    expect(onChange).toHaveBeenCalledWith([['a', 'Y']]);
+  });
+
+  it('applies className and style from getCellProps to the cell', () => {
+    render(
+      <MasumeGrid
+        data={[['a']]}
+        getCellProps={() => ({ className: 'cell-error', style: { background: 'red' } })}
+      />,
+    );
+    const cell = screen.getByText('a');
+    expect(cell.className).toContain('masume-grid-cell');
+    expect(cell.className).toContain('cell-error');
+    expect(cell.style.background).toBe('red');
+    expect(cell.style.width).toBe('120px'); // grid geometry still wins
+  });
+
+  it('formats the display via ColumnDef.format while edit and copy use the raw value', () => {
+    render(
+      <MasumeGrid
+        data={[['1234567']]}
+        columns={[{ type: 'number', format: formatThousands }]}
+        onChange={vi.fn()}
+      />,
+    );
+    const cell = screen.getByText('1,234,567');
+    fireEvent.mouseDown(cell);
+    fireEvent.doubleClick(cell);
+    expect(editor().value).toBe('1234567'); // editor gets the stored value
+    fireEvent.keyDown(editor(), { key: 'Escape' });
+    const setData = vi.fn();
+    fireEvent.copy(editor(), { clipboardData: { setData } });
+    expect(setData).toHaveBeenCalledWith('text/plain', '1234567'); // copy too
+  });
+
+  it('does not call format for empty cells', () => {
+    const format = vi.fn((v: string) => `<${v}>`);
+    render(<MasumeGrid data={[['', 'x']]} columns={[{ format }, { format }]} />);
+    expect(screen.getByText('<x>')).toBeTruthy();
+    expect(format).toHaveBeenCalledTimes(1);
+  });
+
+  it('exposes ARIA grid semantics with 1-based indices including header and row numbers', () => {
+    const { container } = render(
+      <MasumeGrid
+        data={[
+          ['a', 'b'],
+          ['c', 'd'],
+        ]}
+        columns={[{ title: 'X' }, { title: 'Y', readOnly: true }]}
+      />,
+    );
+    const grid = container.querySelector('.masume-grid')!;
+    expect(grid.getAttribute('role')).toBe('grid');
+    expect(grid.getAttribute('aria-rowcount')).toBe('3'); // header + 2 data rows
+    expect(grid.getAttribute('aria-colcount')).toBe('3'); // row numbers + 2 columns
+    expect(grid.getAttribute('aria-multiselectable')).toBe('true');
+
+    const head = container.querySelector('.masume-grid-head')!;
+    expect(head.getAttribute('role')).toBe('row');
+    expect(head.getAttribute('aria-rowindex')).toBe('1');
+    const hcell = container.querySelector('[data-hcol="0"]')!;
+    expect(hcell.getAttribute('role')).toBe('columnheader');
+    expect(hcell.getAttribute('aria-colindex')).toBe('2');
+
+    expect(container.querySelector('.masume-grid-body')!.getAttribute('role')).toBe('rowgroup');
+    const rownum = container.querySelector('[data-rownum="0"]')!;
+    expect(rownum.getAttribute('role')).toBe('rowheader');
+    expect(rownum.getAttribute('aria-colindex')).toBe('1');
+
+    const cellD = screen.getByText('d');
+    expect(cellD.getAttribute('role')).toBe('gridcell');
+    expect(cellD.getAttribute('aria-colindex')).toBe('3');
+    expect(cellD.closest('.masume-grid-row')!.getAttribute('aria-rowindex')).toBe('3');
+    expect(screen.getByText('b').getAttribute('aria-readonly')).toBe('true'); // readOnly column
+
+    // The hidden editor references the active cell.
+    fireEvent.mouseDown(screen.getByText('a'));
+    const activeId = screen.getByText('a').getAttribute('id');
+    expect(activeId).toBeTruthy();
+    expect(editor().getAttribute('aria-activedescendant')).toBe(activeId);
+  });
+
+  it('omits the header row and row-number column from ARIA counts when hidden', () => {
+    const { container } = render(
+      <MasumeGrid data={[['a']]} showHeader={false} showRowNumbers={false} />,
+    );
+    const grid = container.querySelector('.masume-grid')!;
+    expect(grid.getAttribute('aria-rowcount')).toBe('1');
+    expect(grid.getAttribute('aria-colcount')).toBe('1');
+    const cell = screen.getByText('a');
+    expect(cell.getAttribute('aria-colindex')).toBe('1');
+    expect(cell.closest('.masume-grid-row')!.getAttribute('aria-rowindex')).toBe('1');
+  });
+
+  it('marks the grid aria-readonly when readOnly', () => {
+    const { container } = render(<MasumeGrid data={[['a']]} readOnly />);
+    expect(container.querySelector('.masume-grid')!.getAttribute('aria-readonly')).toBe('true');
   });
 });

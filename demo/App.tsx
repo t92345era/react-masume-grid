@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { MasumeGrid } from '../src';
+import { MasumeGrid, formatThousands, isCheckboxChecked } from '../src';
 import type { ColumnDef, NormalizedRange } from '../src';
 import './demo.css';
 
@@ -49,7 +49,7 @@ export default function App() {
             { title: '商品コード', width: 110, readOnly: true },
             { title: '商品名', width: 160 },
             { title: 'カテゴリ', width: 110, type: 'select', options: CATEGORY_MASTER },
-            { title: '単価', width: 80, type: 'number' },
+            { title: '単価', width: 80, type: 'number', format: formatThousands },
             { title: '数量', width: 80, type: 'number' },
             { title: '状態', width: 120, type: 'select', options: STATUSES, filterable: false },
             { title: '入荷日', width: 120, type: 'date' },
@@ -163,6 +163,14 @@ export default function App() {
         columns={columns}
         onChange={setData}
         onSelectionChange={handleSelectionChange}
+        // セル単位の上書き: 検品済の行は単価・数量をロック、数量0は警告ハイライト
+        getCellProps={(row, col, value) => {
+          if (!useColumns) return;
+          if (col === 4 && value !== '' && Number(value) === 0)
+            return { className: 'demo-cell-warn' };
+          if ((col === 3 || col === 4) && isCheckboxChecked(data[row]?.[7] ?? ''))
+            return { readOnly: true, className: 'demo-cell-locked' };
+        }}
         showRowNumbers={showRowNumbers}
         showHeader={showHeader}
         readOnly={readOnly}
@@ -173,11 +181,13 @@ export default function App() {
       <p className="demo-note">
         300行 × 11列（行は仮想化描画）。「商品コード」列は readOnly、
         「カテゴリ」「状態」は選択肢型（カテゴリはコード保存・ラベル表示、状態は filterable: false で常に全候補表示）、
-        「単価」「数量」は数値型（全角・カンマ入り入力も正規化）、「入荷日」は日付型、
+        「単価」「数量」は数値型（全角・カンマ入り入力も正規化。単価は format: formatThousands で桁区切り表示）、「入荷日」は日付型、
         「検品済」はチェックボックス型（クリック / Space でトグル）、
         「金額」「操作」はテンプレート型（任意のコンポーネントを描画。関数にはデータ行のインデックスが渡されます。
         「金額」は単価×数量の派生表示 — 単価や数量を編集すると連動して更新、「操作」はボタンでその行を参照）。
         ヘッダーの境界をドラッグすると列幅を変更できます。
+        getCellProps によるセル単位の上書きも入っています —
+        検品済の行は「単価」「数量」が編集ロック（グレー表示）、数量が 0 のセルは警告ハイライトされます。
       </p>
     </div>
   );

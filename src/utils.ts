@@ -104,6 +104,20 @@ export function isCheckboxChecked(value: string): boolean {
   return normalizeCheckboxInput(value) === 'true';
 }
 
+/**
+ * Format a stored number string with thousands separators for display
+ * (e.g. `'1234567.5'` → `'1,234,567.5'`). Non-numeric values are returned
+ * unchanged, so it is safe as a `ColumnDef.format` for number columns.
+ */
+export function formatThousands(value: string): string {
+  const n = normalizeNumberInput(value);
+  if (n === null || n === '') return value;
+  const m = /^([+-]?)(\d+)(\.\d*)?([eE][+-]?\d+)?$/.exec(n);
+  if (!m) return value; // e.g. '.5' — leave as-is
+  const grouped = m[2].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return m[1] + grouped + (m[3] ?? '') + (m[4] ?? '');
+}
+
 function escapeTSVCell(value: string): string {
   return /[\t\n\r"]/.test(value) ? '"' + value.replace(/"/g, '""') + '"' : value;
 }
