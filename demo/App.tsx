@@ -40,6 +40,7 @@ export default function App() {
   const [readOnly, setReadOnly] = useState(false);
   const [useColumns, setUseColumns] = useState(true);
   const [resizable, setResizable] = useState(true);
+  const [appendBlankRow, setAppendBlankRow] = useState(true);
   const [selectionLabel, setSelectionLabel] = useState('');
 
   const columns = useMemo<ColumnDef[] | undefined>(
@@ -156,6 +157,14 @@ export default function App() {
           />
           列幅リサイズ
         </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={appendBlankRow}
+            onChange={(e) => setAppendBlankRow(e.target.checked)}
+          />
+          末尾に空行を追加
+        </label>
         <span className="demo-selection">{selectionLabel}</span>
       </div>
       <MasumeGrid
@@ -171,6 +180,7 @@ export default function App() {
           if ((col === 3 || col === 4) && isCheckboxChecked(data[row]?.[7] ?? ''))
             return { readOnly: true, className: 'demo-cell-locked' };
         }}
+        appendBlankRow={appendBlankRow}
         showRowNumbers={showRowNumbers}
         showHeader={showHeader}
         readOnly={readOnly}
@@ -188,6 +198,8 @@ export default function App() {
         ヘッダーの境界をドラッグすると列幅を変更できます。
         getCellProps によるセル単位の上書きも入っています —
         検品済の行は「単価」「数量」が編集ロック（グレー表示）、数量が 0 のセルは警告ハイライトされます。
+        appendBlankRow により最終行の下に入力用の空行が1行表示され、そこに値を入力して確定すると行が追加されます
+        （末尾までスクロールして試せます）。
       </p>
     </div>
   );

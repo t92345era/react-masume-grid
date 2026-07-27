@@ -48,6 +48,7 @@ export function MasumeGrid({
   onSelectionChange,
   onColumnResize,
   getCellProps,
+  appendBlankRow = false,
   showRowNumbers = true,
   showHeader = true,
   readOnly = false,
@@ -59,7 +60,12 @@ export function MasumeGrid({
   className,
   style,
 }: MasumeGridProps) {
-  const rowCount = data.length;
+  // Spreadsheet-style "new record" row: rendered one row past the data and
+  // materialized in `data` only once a value is committed there. Editing is
+  // the only thing it is good for, so a read-only grid never shows it.
+  const dataRowCount = data.length;
+  const hasBlankRow = appendBlankRow && !readOnly;
+  const rowCount = dataRowCount + (hasBlankRow ? 1 : 0);
   const colCount = useMemo(
     () => (columns ? columns.length : data.reduce((m, r) => Math.max(m, r.length), 0)),
     [columns, data],
@@ -112,6 +118,13 @@ export function MasumeGrid({
   editingRef.current = editing;
   const editValueRef = useRef(editValue);
   editValueRef.current = editValue;
+  // Set when a write materialized the blank row: `data` grows only after the
+  // parent re-renders, so the caret is allowed one row past `rowCount` in the
+  // meantime (that row is the blank row that is about to appear).
+  const grewRowsRef = useRef(false);
+  useEffect(() => {
+    grewRowsRef.current = false;
+  }, [data]);
 
   const lastRange = selection[selection.length - 1];
   const active: CellPos = {
@@ -225,6 +238,7 @@ export function MasumeGrid({
         applicable.push(value === ch.value ? ch : { ...ch, value });
       }
       if (applicable.length === 0) return;
+      if (applicable.some((ch) => ch.row >= data.length)) grewRowsRef.current = true;
       if (onCellChange) {
         for (const ch of applicable) onCellChange(ch.row, ch.col, ch.value);
       }
@@ -417,7 +431,11 @@ export function MasumeGrid({
 
   const moveActive = (row: number, col: number, opts?: { extend?: boolean }) => {
     if (rowCount === 0 || colCount === 0) return;
-    const pos = { row: clamp(row, 0, rowCount - 1), col: clamp(col, 0, colCount - 1) };
+    // Enter/Tab on a just-filled blank row must land on the blank row that
+    // the pending `onChange` is adding, one past the row count of this render.
+    const maxRow = rowCount - 1 + (grewRowsRef.current ? 1 : 0);
+    grewRowsRef.current = false;
+    const pos = { row: clamp(row, 0, maxRow), col: clamp(col, 0, colCount - 1) };
     if (opts?.extend) setSelection((sel) => setLastFocus(sel, pos));
     else setSelection([{ anchor: pos, focus: pos }]);
     scrollCellIntoView(pos);
@@ -425,9 +443,11 @@ export function MasumeGrid({
 
   const selectAll = () => {
     if (rowCount === 0 || colCount === 0) return;
-    setSelection([
-      { anchor: { row: 0, col: 0 }, focus: { row: rowCount - 1, col: colCount - 1 } },
-    ]);
+    // The trailing blank row is an input affordance, not data — leaving it
+    // out keeps a select-all copy free of a stray empty line. (With no data
+    // at all there is nothing else to select.)
+    const lastRow = Math.max(0, (hasBlankRow ? dataRowCount : rowCount) - 1);
+    setSelection([{ anchor: { row: 0, col: 0 }, focus: { row: lastRow, col: colCount - 1 } }]);
   };
 
   // ----- clipboard ------------------------------------------------------
@@ -1003,6 +1023,7 @@ export function MasumeGrid({
 
   const rows: React.ReactNode[] = [];
   for (let r = startRow; r < endRow; r++) {
+    const isBlankRow = hasBlankRow && r >= dataRowCount;
     const cells: React.ReactNode[] = [];
     if (showRowNumbers) {
       cells.push(
@@ -1011,7 +1032,11 @@ export function MasumeGrid({
           data-rownum={r}
           role="rowheader"
           aria-colindex={1}
-          className={'masume-grid-rownum' + (isRowSelected(r) ? ' masume-grid-rownum--sel' : '')}
+          className={
+            'masume-grid-rownum' +
+            (isRowSelected(r) ? ' masume-grid-rownum--sel' : '') +
+            (isBlankRow ? ' masume-grid-rownum--blank' : '')
+          }
           style={{ width: rowNumW, height: rowHeight }}
         >
           {r + 1}
@@ -1066,7 +1091,9 @@ export function MasumeGrid({
               className={'masume-grid-checkbox' + (checked ? ' masume-grid-checkbox--on' : '')}
             />
           ) : type === 'template' ? (
-            (columns?.[c]?.template?.({ row: r, col: c, value: raw }) ?? display)
+            // The blank row has no data record yet, so row templates (action
+            // buttons, values derived from `data[row]`, …) are not rendered.
+            isBlankRow ? null : (columns?.[c]?.template?.({ row: r, col: c, value: raw }) ?? display)
           ) : (
             display
           )}
@@ -1079,7 +1106,7 @@ export function MasumeGrid({
         key={r}
         role="row"
         aria-rowindex={r + ariaRowBase}
-        className="masume-grid-row"
+        className={'masume-grid-row' + (isBlankRow ? ' masume-grid-row--blank' : '')}
         style={{ top: r * rowHeight, width: totalW, height: rowHeight }}
       >
         {cells}

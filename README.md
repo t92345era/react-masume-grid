@@ -4,7 +4,7 @@
 
 A lightweight, generic React spreadsheet component. React is the only dependency (~5KB gzipped).
 
-- **Grid display** — toggleable row numbers and header, per-column widths, drag-to-resize columns, virtualized rows (smooth with tens of thousands of rows)
+- **Grid display** — toggleable row numbers and header, per-column widths, drag-to-resize columns, optional trailing blank row for new entries, virtualized rows (smooth with tens of thousands of rows)
 - **Cell types** — text / number (normalizes full-width digits and commas) / select (dropdown backed by master data, stores codes while displaying labels) / date (calendar input, normalizes pasted dates in common Japanese formats) / checkbox (click or Space to toggle) / template (render any component per cell)
 - **Cell editing** — start editing by double-click, F2, or just typing. **Full IME support**: with a Japanese IME on, pressing "A" opens the editor and types 「あ」 right into the cell
 - **Range selection** — mouse drag, extend with Shift+click / Shift+arrows, add multiple ranges with Ctrl(⌘)+click. Click row/column headers to select whole rows/columns, the top-left corner to select all
@@ -64,6 +64,7 @@ When `columns` is omitted, the column count is derived from `data` and headers s
 | `onSelectionChange` | `(ranges: NormalizedRange[]) => void` | — | Called when the selection changes (array of `{top,left,bottom,right}`) |
 | `onColumnResize` | `(col, width) => void` | — | Called when a column resize drag finishes (final width in px) |
 | `getCellProps` | `(row, col, value) => CellProps` | — | Per-cell overrides: `{ readOnly?, className?, style? }`. See [Per-cell overrides](#per-cell-overrides) |
+| `appendBlankRow` | `boolean` | `false` | Show a trailing blank row for entering new rows. See [Trailing blank row](#trailing-blank-row) |
 | `showRowNumbers` | `boolean` | `true` | Show the row-number column |
 | `showHeader` | `boolean` | `true` | Show the header row |
 | `readOnly` | `boolean` | `false` | Disallow editing (selection & copy still work) |
@@ -96,6 +97,21 @@ Column widths are the one uncontrolled exception — widths set by dragging are 
 - `readOnly` applies to edits, paste and delete alike (on top of the grid-level and column-level `readOnly`).
 - `className` is appended to the cell element; `style` is merged in (the grid-managed `width`/`height` cannot be overridden).
 - It is called for every visible cell on each render — keep it cheap (a lookup, not a computation).
+
+### Trailing blank row
+
+`appendBlankRow` renders one empty row below the data, like the "new record" row in Excel or Access, so users can keep typing without a separate "add row" button:
+
+```tsx
+<MasumeGrid data={data} onChange={setData} appendBlankRow />
+```
+
+- `data` is **not** modified to make room for it — the row only exists in the rendering. Committing a value there calls `onChange` with an array one row longer, and `onCellChange` with `row === data.length`. Once your state updates, a fresh blank row appears below it.
+- The row is exactly one row: it never grows until it is filled, and clearing it again (Delete, or committing an empty value) does not create a row.
+- Enter or Tab on the last cell of the blank row lands on the newly created row's successor, so continuous data entry works.
+- Ignored when the grid is `readOnly`. Select-all (Ctrl(⌘)+A) skips the blank row so copying does not emit a stray empty line — it can still be selected and copied on its own.
+- `template` columns are not rendered in the blank row (there is no data record yet for a row action or a derived value to refer to). `getCellProps` **is** called for it with `row === data.length` and `value === ''`, so column locking and styling still apply.
+- Its row number and row element carry `masume-grid-rownum--blank` / `masume-grid-row--blank` for custom styling.
 
 ## Cell types
 

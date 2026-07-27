@@ -130,9 +130,20 @@ export interface MasumeGridProps {
    * Per-cell overrides: return `readOnly`, `className` and/or `style` for a
    * cell (e.g. validation-error highlighting, locking individual cells).
    * Called for visible cells on every render — keep it cheap. `readOnly`
-   * applies to edits, paste and delete alike.
+   * applies to edits, paste and delete alike. With `appendBlankRow`, it is
+   * also called for the trailing blank row (`row === data.length`), where
+   * every value is `''`.
    */
   getCellProps?: (row: number, col: number, value: CellValue) => CellProps | null | undefined;
+  /**
+   * Append one blank row below the data (spreadsheet-style "new record"
+   * row). `data` itself is left untouched: the row only exists in the
+   * rendering, and committing a value in it calls `onChange` with an array
+   * one row longer (and `onCellChange` with `row === data.length`), after
+   * which a fresh blank row appears again. Ignored when the grid is
+   * `readOnly`. Default: false.
+   */
+  appendBlankRow?: boolean;
   /** Show the row-number column. Default: true. */
   showRowNumbers?: boolean;
   /** Show the column header row. Default: true. */

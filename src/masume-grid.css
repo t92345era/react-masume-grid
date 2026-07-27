@@ -141,6 +141,12 @@
   cursor: default;
 }
 
+/* Trailing "new record" row (appendBlankRow): its number reads as a hint,
+   not as data. Declared before --sel so selection styling still wins. */
+.masume-grid-rownum--blank {
+  color: var(--masume-grid-readonly-fg);
+}
+
 .masume-grid-rownum--sel {
   background: var(--masume-grid-header-sel-bg);
   color: var(--masume-grid-accent);

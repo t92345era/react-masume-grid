@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MasumeGrid, formatThousands } from '../src';
@@ -689,5 +690,104 @@ describe('MasumeGrid', () => {
   it('marks the grid aria-readonly when readOnly', () => {
     const { container } = render(<MasumeGrid data={[['a']]} readOnly />);
     expect(container.querySelector('.masume-grid')!.getAttribute('aria-readonly')).toBe('true');
+  });
+
+  // ----- appendBlankRow ---------------------------------------------------
+
+  const rowCountOf = (container: HTMLElement) =>
+    container.querySelectorAll('.masume-grid-row').length;
+
+  it('renders one extra blank row only when appendBlankRow is set', () => {
+    const data = [['a', 'b']];
+    const { container, rerender } = render(<MasumeGrid data={data} />);
+    expect(rowCountOf(container)).toBe(1);
+    rerender(<MasumeGrid data={data} appendBlankRow />);
+    expect(rowCountOf(container)).toBe(2);
+    const blank = container.querySelector('.masume-grid-row--blank')!;
+    expect(blank.getAttribute('aria-rowindex')).toBe('3'); // header + 1 data row
+    expect(container.querySelector('[data-rownum="1"]')!.textContent).toBe('2');
+  });
+
+  it('appends a row to the data when the blank row is committed', () => {
+    const onChange = vi.fn();
+    const onCellChange = vi.fn();
+    const { container } = render(
+      <MasumeGrid data={[['a', 'b']]} onChange={onChange} onCellChange={onCellChange} appendBlankRow />,
+    );
+    fireEvent.mouseDown(container.querySelector('[data-row="1"][data-col="1"]')!);
+    fireEvent.change(editor(), { target: { value: 'new' } });
+    fireEvent.keyDown(editor(), { key: 'Enter' });
+    expect(onChange).toHaveBeenCalledWith([
+      ['a', 'b'],
+      ['', 'new'],
+    ]);
+    expect(onCellChange).toHaveBeenCalledWith(1, 1, 'new');
+  });
+
+  it('moves onto the freshly added blank row after committing with Enter', () => {
+    function Controlled() {
+      const [data, setData] = useState<string[][]>([['a']]);
+      return <MasumeGrid data={data} onChange={setData} appendBlankRow />;
+    }
+    const { container } = render(<Controlled />);
+    fireEvent.mouseDown(container.querySelector('[data-row="1"][data-col="0"]')!);
+    fireEvent.change(editor(), { target: { value: 'b' } });
+    fireEvent.keyDown(editor(), { key: 'Enter' });
+    expect(rowCountOf(container)).toBe(3); // 2 data rows + the next blank row
+    const active = container.querySelector('.masume-grid-cell--active')!;
+    expect(active.getAttribute('data-row')).toBe('2');
+    expect(container.querySelector('.masume-grid-row--blank')!.getAttribute('aria-rowindex')).toBe(
+      '4',
+    );
+  });
+
+  it('does not grow the data when the blank row is left empty', () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <MasumeGrid data={[['a']]} onChange={onChange} appendBlankRow />,
+    );
+    const blankCell = container.querySelector('[data-row="1"][data-col="0"]')!;
+    fireEvent.mouseDown(blankCell);
+    fireEvent.keyDown(editor(), { key: 'Delete' });
+    fireEvent.doubleClick(blankCell);
+    fireEvent.keyDown(editor(), { key: 'Enter' }); // commit without typing
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('ignores appendBlankRow on a read-only grid', () => {
+    const { container } = render(<MasumeGrid data={[['a']]} appendBlankRow readOnly />);
+    expect(rowCountOf(container)).toBe(1);
+    expect(container.querySelector('.masume-grid-row--blank')).toBeNull();
+  });
+
+  it('lets the blank row start an empty grid', () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <MasumeGrid data={[]} columns={[{ title: 'A' }]} onChange={onChange} appendBlankRow />,
+    );
+    expect(rowCountOf(container)).toBe(1);
+    fireEvent.mouseDown(container.querySelector('[data-row="0"][data-col="0"]')!);
+    fireEvent.change(editor(), { target: { value: 'first' } });
+    fireEvent.keyDown(editor(), { key: 'Enter' });
+    expect(onChange).toHaveBeenCalledWith([['first']]);
+  });
+
+  it('leaves the blank row out of select-all', () => {
+    const setData = vi.fn();
+    const { container } = render(<MasumeGrid data={[['a', 'b']]} appendBlankRow />);
+    fireEvent.mouseDown(container.querySelector('[data-row="0"][data-col="0"]')!);
+    fireEvent.keyDown(editor(), { key: 'a', ctrlKey: true });
+    fireEvent.copy(editor(), { clipboardData: { setData } });
+    expect(setData).toHaveBeenCalledWith('text/plain', 'a\tb');
+  });
+
+  it('does not render column templates in the blank row', () => {
+    const template = vi.fn(({ row }: { row: number }) => <span>tpl{row}</span>);
+    const { container } = render(
+      <MasumeGrid data={[['a']]} columns={[{ type: 'template', template }]} appendBlankRow />,
+    );
+    expect(screen.getByText('tpl0')).toBeTruthy();
+    expect(template).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('[data-row="1"][data-col="0"]')!.textContent).toBe('');
   });
 });
