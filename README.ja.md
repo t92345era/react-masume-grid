@@ -4,7 +4,7 @@
 
 軽量・汎用の React スプレッドシートコンポーネント。依存は React のみ（gzip 約 5KB）。
 
-- **グリッド表示** — 行番号・ヘッダーの表示/非表示切り替え、列幅指定、ドラッグでの列幅リサイズ、末尾の入力用空行、行の仮想化描画（数万行でも軽快）
+- **グリッド表示** — 行番号・ヘッダーの表示/非表示切り替え、列幅指定、ドラッグでの列幅リサイズ、ヘッダクリックによるソート、末尾の入力用空行、行の仮想化描画（数万行でも軽快）
 - **セル型** — 文字列 / 数値（全角・カンマ正規化）/ 選択肢（マスタデータのプルダウン、コード保存・ラベル表示）/ 日付（カレンダー入力、和式表記の貼り付け正規化）/ チェックボックス（クリック / Space でトグル）/ テンプレート（任意のコンポーネントをセルに描画）
 - **セル編集** — ダブルクリック / F2 / キー入力で編集開始。**日本語 IME 完全対応**（IMEオンで「A」を打つとセルが編集状態になり「あ」が入力される）
 - **範囲選択** — マウスドラッグ、Shift+クリック/矢印キーで拡張、Ctrl(⌘)+クリックで複数範囲追加。行・列ヘッダークリックで行/列選択、左上コーナーで全選択
@@ -58,17 +58,20 @@ function App() {
 | Prop | 型 | 既定値 | 説明 |
 | --- | --- | --- | --- |
 | `data` | `string[][]` | （必須） | グリッドの内容。行の長さは不揃いでも可 |
-| `columns` | `ColumnDef[]` | — | `{ title?, width?, readOnly?, resizable?, type?, options?, strict?, filterable?, template?, format? }` の配列。省略時は data から列数を導出 |
+| `columns` | `ColumnDef[]` | — | `{ title?, width?, readOnly?, resizable?, sortable?, compare?, type?, options?, strict?, filterable?, template?, format? }` の配列。省略時は data から列数を導出 |
 | `onChange` | `(next: string[][]) => void` | — | 編集・貼り付け・削除のたびに新しい 2 次元配列で呼ばれる |
 | `onCellChange` | `(row, col, value) => void` | — | 変更セルごとに呼ばれる。`onChange` の代わり/併用可 |
-| `onSelectionChange` | `(ranges: NormalizedRange[]) => void` | — | 選択変更時（`{top,left,bottom,right}` の配列） |
+| `onSelectionChange` | `(ranges, viewToData) => void` | — | 選択変更時（`{top,left,bottom,right}` の配列）。行は**表示行**で、ソート中は `viewToData` でデータ行に変換できる（未ソート時は `null`） |
 | `onColumnResize` | `(col, width) => void` | — | 列幅ドラッグの確定時（最終幅 px） |
+| `onSortChange` | `(sort: SortState \| null) => void` | — | ヘッダクリックによるソート変更時（`null` は解除） |
 | `getCellProps` | `(row, col, value) => CellProps` | — | セル単位の上書き: `{ readOnly?, className?, style? }`。[セル単位の上書き](#セル単位の上書き)を参照 |
 | `appendBlankRow` | `boolean` | `false` | 末尾に新規入力用の空行を1行表示。[末尾の空行](#末尾の空行)を参照 |
 | `showRowNumbers` | `boolean` | `true` | 行番号列の表示 |
 | `showHeader` | `boolean` | `true` | ヘッダー行の表示 |
 | `readOnly` | `boolean` | `false` | 編集禁止（選択・コピーは可能） |
 | `resizableColumns` | `boolean` | `true` | ヘッダー境界のドラッグで列幅を変更可能に。列単位は `ColumnDef.resizable` で上書き（要 `showHeader`） |
+| `sortable` | `boolean` | `false` | ヘッダクリックでソート。[ソート](#ソート)を参照 |
+| `defaultSort` | `SortState \| null` | `null` | 初期ソート状態。例: `{ col: 2, direction: 'asc' }` |
 | `rowHeight` | `number` | `28` | 行の高さ(px) |
 | `headerHeight` | `number` | `28` | ヘッダーの高さ(px) |
 | `defaultColumnWidth` | `number` | `120` | 幅未指定の列の幅(px) |
@@ -112,6 +115,35 @@ function App() {
 - `readOnly` のときは無視されます。全選択（Ctrl(⌘)+A）は空行を含めません（コピー結果に余計な空行が入らないようにするため）。空行だけを個別に選択・コピーすることは可能です。
 - `template` 列は空行では描画されません（行アクションや派生表示が参照するデータ行がまだ存在しないため）。`getCellProps` は空行に対しても `row === data.length` / `value === ''` で呼ばれるので、列のロックやスタイルはそのまま効きます。
 - 空行の行番号セルと行要素には `masume-grid-rownum--blank` / `masume-grid-row--blank` クラスが付くので、独自のスタイルを当てられます。
+
+### ソート
+
+`sortable` を指定すると、列ヘッダのクリックで**昇順 → 降順 → 解除**（3回目のクリックで元の順序に戻る）とソートできます。
+
+```tsx
+<MasumeGrid
+  data={data}
+  onChange={setData}
+  columns={[
+    { title: '商品名' },
+    { title: '数量', type: 'number' },
+    { title: 'メモ', sortable: false },                        // この列はソート対象外
+    { title: 'コード', compare: (a, b) => a.length - b.length }, // 独自の並び順
+  ]}
+  sortable
+  defaultSort={{ col: 1, direction: 'desc' }}
+  onSortChange={(sort) => saveSort(sort)}
+/>
+```
+
+- **`data` は並べ替わりません** — 変わるのは表示順だけです。`onChange` / `onCellChange` / `getCellProps` / `template` には常に**データ行**のインデックスが渡されるため、ソート中に編集しても正しいレコードに書き込まれます。例外は `onSelectionChange` で、範囲は表示行、第2引数の `viewToData` でデータ行に変換できます。
+- ヘッダの通常クリックは**ソートと列選択を同時に**行います。Shift+クリック / Ctrl(⌘)+クリックは従来どおり選択のみ（複数範囲選択はそのまま使えます）。
+- ソートは**クリック時点のスナップショット**です。セルを編集しても並べ替え直さないので、入力中の行が飛んでいきません（Excel / Sheets と同じ挙動）。並べ直したいときはヘッダを再クリックしてください。`appendBlankRow` で追加された行は末尾に加わり、入力用の空行は常に最下部に固定されます。
+- 型ごとの既定の並び順: `number` は数値順、`date` は日付順、`checkbox` は未チェック → チェック、`select` は `options` の定義順、その他はロケール考慮の文字列比較（「項目2」が「項目10」より前）。**空セルは昇順・降順いずれでも常に末尾**です。
+- `ColumnDef.compare(a, b)` を指定すると、その列の並び順（空セルの扱いを含む）を完全に置き換えます。降順では結果が反転されます。
+- `ColumnDef.sortable` でグリッド全体の設定を列単位に上書きできます。`template` 列は保存値と表示内容が一致しないことが多いため、明示的に指定しない限りソート対象外です。
+- ソート可能な列のヘッダには**右端に常にインジケータ**が表示されます。未ソート時は淡い `⇅`（クリックできることが一目で分かります）、ソート中はアクセントカラーの `▲` / `▼` です。ヘッダには `aria-sort` と `masume-grid-hcell--sortable` / `--sorted` が付き、グリフは `masume-grid-sort-arrow`（未ソート時は `--none` 付き）なのでスタイルを当てられます。
+- ソート状態はコンポーネント内部に保持されます（ドラッグした列幅と同じ扱い）。永続化したい場合は `onSortChange` で保存し、`defaultSort` で復元してください。
 
 ## セル型
 

@@ -4,7 +4,7 @@
 
 A lightweight, generic React spreadsheet component. React is the only dependency (~5KB gzipped).
 
-- **Grid display** — toggleable row numbers and header, per-column widths, drag-to-resize columns, optional trailing blank row for new entries, virtualized rows (smooth with tens of thousands of rows)
+- **Grid display** — toggleable row numbers and header, per-column widths, drag-to-resize columns, header-click sorting, optional trailing blank row for new entries, virtualized rows (smooth with tens of thousands of rows)
 - **Cell types** — text / number (normalizes full-width digits and commas) / select (dropdown backed by master data, stores codes while displaying labels) / date (calendar input, normalizes pasted dates in common Japanese formats) / checkbox (click or Space to toggle) / template (render any component per cell)
 - **Cell editing** — start editing by double-click, F2, or just typing. **Full IME support**: with a Japanese IME on, pressing "A" opens the editor and types 「あ」 right into the cell
 - **Range selection** — mouse drag, extend with Shift+click / Shift+arrows, add multiple ranges with Ctrl(⌘)+click. Click row/column headers to select whole rows/columns, the top-left corner to select all
@@ -58,17 +58,20 @@ When `columns` is omitted, the column count is derived from `data` and headers s
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
 | `data` | `string[][]` | (required) | Grid contents. Rows may be ragged |
-| `columns` | `ColumnDef[]` | — | Array of `{ title?, width?, readOnly?, resizable?, type?, options?, strict?, filterable?, template?, format? }`. When omitted, the column count is derived from data |
+| `columns` | `ColumnDef[]` | — | Array of `{ title?, width?, readOnly?, resizable?, sortable?, compare?, type?, options?, strict?, filterable?, template?, format? }`. When omitted, the column count is derived from data |
 | `onChange` | `(next: string[][]) => void` | — | Called with a new 2D array on every edit / paste / delete |
 | `onCellChange` | `(row, col, value) => void` | — | Called once per changed cell. Use instead of (or with) `onChange` |
-| `onSelectionChange` | `(ranges: NormalizedRange[]) => void` | — | Called when the selection changes (array of `{top,left,bottom,right}`) |
+| `onSelectionChange` | `(ranges, viewToData) => void` | — | Called when the selection changes (array of `{top,left,bottom,right}`). Rows are display rows; `viewToData` maps them to data rows while sorted (`null` when unsorted) |
 | `onColumnResize` | `(col, width) => void` | — | Called when a column resize drag finishes (final width in px) |
+| `onSortChange` | `(sort: SortState \| null) => void` | — | Called on every header-click sort change (`null` = cleared) |
 | `getCellProps` | `(row, col, value) => CellProps` | — | Per-cell overrides: `{ readOnly?, className?, style? }`. See [Per-cell overrides](#per-cell-overrides) |
 | `appendBlankRow` | `boolean` | `false` | Show a trailing blank row for entering new rows. See [Trailing blank row](#trailing-blank-row) |
 | `showRowNumbers` | `boolean` | `true` | Show the row-number column |
 | `showHeader` | `boolean` | `true` | Show the header row |
 | `readOnly` | `boolean` | `false` | Disallow editing (selection & copy still work) |
 | `resizableColumns` | `boolean` | `true` | Resize columns by dragging header edges. Override per column with `ColumnDef.resizable` (requires `showHeader`) |
+| `sortable` | `boolean` | `false` | Sort by clicking a column header. See [Sorting](#sorting) |
+| `defaultSort` | `SortState \| null` | `null` | Initial sort, e.g. `{ col: 2, direction: 'asc' }` |
 | `rowHeight` | `number` | `28` | Row height (px) |
 | `headerHeight` | `number` | `28` | Header height (px) |
 | `defaultColumnWidth` | `number` | `120` | Width of columns without an explicit width (px) |
@@ -112,6 +115,35 @@ Column widths are the one uncontrolled exception — widths set by dragging are 
 - Ignored when the grid is `readOnly`. Select-all (Ctrl(⌘)+A) skips the blank row so copying does not emit a stray empty line — it can still be selected and copied on its own.
 - `template` columns are not rendered in the blank row (there is no data record yet for a row action or a derived value to refer to). `getCellProps` **is** called for it with `row === data.length` and `value === ''`, so column locking and styling still apply.
 - Its row number and row element carry `masume-grid-rownum--blank` / `masume-grid-row--blank` for custom styling.
+
+### Sorting
+
+`sortable` turns column headers into sort controls: each click cycles **ascending → descending → unsorted** (the third click restores the original order).
+
+```tsx
+<MasumeGrid
+  data={data}
+  onChange={setData}
+  columns={[
+    { title: 'Name' },
+    { title: 'Qty', type: 'number' },
+    { title: 'Note', sortable: false },                    // opt this column out
+    { title: 'Code', compare: (a, b) => a.length - b.length }, // custom order
+  ]}
+  sortable
+  defaultSort={{ col: 1, direction: 'desc' }}
+  onSortChange={(sort) => saveSort(sort)}
+/>
+```
+
+- **`data` is never reordered** — only the display order changes. `onChange`, `onCellChange`, `getCellProps` and `template` keep receiving **data** indices, so editing a sorted row writes to the right record. `onSelectionChange` is the exception: its ranges are display rows, and the `viewToData` argument maps them back.
+- A plain header click **sorts and selects the column**; Shift+click and Ctrl(⌘)+click stay pure selection gestures (multi-range selection is unaffected).
+- Sorting is a **snapshot**: editing a cell does not re-sort, so the row you are typing in never jumps away (as in Excel/Sheets). Click the header again to re-apply the order. Rows appended via `appendBlankRow` join the end, and that blank row always stays at the bottom.
+- Default order per column type: `number` numerically, `date` chronologically, `checkbox` unchecked → checked, `select` by the order of its `options`, everything else by locale-aware text comparison ("item2" before "item10"). **Empty cells always sort last**, in both directions.
+- `ColumnDef.compare(a, b)` replaces that ordering for a column (including the empty-cells-last rule); the result is negated for descending.
+- `ColumnDef.sortable` overrides the grid-level flag per column. `template` columns are not sortable unless you set it explicitly, since their stored value usually isn't what is rendered.
+- Every sortable header shows an indicator at its **right edge** — a quiet `⇅` while unsorted (so the affordance is visible before the first click), then `▲` / `▼` in the accent color. Headers also get `aria-sort` and `masume-grid-hcell--sortable` / `--sorted`; the glyph is `masume-grid-sort-arrow` (`--none` while unsorted).
+- The sort state lives inside the component (like drag-resized widths). Use `onSortChange` to persist it and `defaultSort` to restore it.
 
 ## Cell types
 

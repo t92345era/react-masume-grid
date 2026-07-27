@@ -525,9 +525,10 @@ describe('MasumeGrid', () => {
     fireEvent.mouseDown(btn);
     fireEvent.click(btn);
     expect(onClick).toHaveBeenCalledWith(0);
-    expect(onSelectionChange).toHaveBeenLastCalledWith([
-      { top: 0, bottom: 0, left: 1, right: 1 },
-    ]);
+    expect(onSelectionChange).toHaveBeenLastCalledWith(
+      [{ top: 0, bottom: 0, left: 1, right: 1 }],
+      null, // unsorted: display rows are data rows
+    );
   });
 
   it('outlines the copied range with marching ants and clears it on Escape', () => {
@@ -779,6 +780,291 @@ describe('MasumeGrid', () => {
     fireEvent.keyDown(editor(), { key: 'a', ctrlKey: true });
     fireEvent.copy(editor(), { clipboardData: { setData } });
     expect(setData).toHaveBeenCalledWith('text/plain', 'a\tb');
+  });
+
+  // ----- sorting ----------------------------------------------------------
+
+  const colValues = (container: HTMLElement, col: number) =>
+    Array.from(container.querySelectorAll(`[data-col="${col}"]`)).map((el) => el.textContent);
+
+  const header = (title: string) => screen.getByText(title).closest('[data-hcol]')!;
+
+  it('cycles ascending → descending → unsorted on header clicks', () => {
+    const onSortChange = vi.fn();
+    const { container } = render(
+      <MasumeGrid
+        data={[['b'], ['c'], ['a']]}
+        columns={[{ title: 'Name' }]}
+        sortable
+        onSortChange={onSortChange}
+      />,
+    );
+    expect(colValues(container, 0)).toEqual(['b', 'c', 'a']);
+
+    fireEvent.mouseDown(header('Name'));
+    expect(colValues(container, 0)).toEqual(['a', 'b', 'c']);
+    expect(onSortChange).toHaveBeenLastCalledWith({ col: 0, direction: 'asc' });
+    expect(header('Name').getAttribute('aria-sort')).toBe('ascending');
+
+    fireEvent.mouseDown(header('Name'));
+    expect(colValues(container, 0)).toEqual(['c', 'b', 'a']);
+    expect(header('Name').getAttribute('aria-sort')).toBe('descending');
+
+    fireEvent.mouseDown(header('Name'));
+    expect(colValues(container, 0)).toEqual(['b', 'c', 'a']); // original order
+    expect(onSortChange).toHaveBeenLastCalledWith(null);
+    expect(header('Name').getAttribute('aria-sort')).toBe('none');
+  });
+
+  it('shows a neutral indicator on every sortable header before sorting', () => {
+    render(
+      <MasumeGrid
+        data={[['b', 'y']]}
+        columns={[{ title: 'Name' }, { title: 'Locked', sortable: false }]}
+        sortable
+      />,
+    );
+    const arrow = (title: string) => header(title).querySelector('.masume-grid-sort-arrow');
+    expect(arrow('Name')!.textContent).toBe('⇅');
+    expect(arrow('Name')!.className).toContain('masume-grid-sort-arrow--none');
+    expect(arrow('Locked')).toBeNull();
+
+    fireEvent.mouseDown(header('Name'));
+    expect(arrow('Name')!.textContent).toBe('▲');
+    expect(arrow('Name')!.className).not.toContain('--none');
+    fireEvent.mouseDown(header('Name'));
+    expect(arrow('Name')!.textContent).toBe('▼');
+    fireEvent.mouseDown(header('Name'));
+    expect(arrow('Name')!.textContent).toBe('⇅'); // back to unsorted
+  });
+
+  it('selects the column as well as sorting it', () => {
+    const onSelectionChange = vi.fn();
+    render(
+      <MasumeGrid
+        data={[['b'], ['a']]}
+        columns={[{ title: 'Name' }]}
+        sortable
+        onSelectionChange={onSelectionChange}
+      />,
+    );
+    fireEvent.mouseDown(header('Name'));
+    expect(onSelectionChange).toHaveBeenLastCalledWith(
+      [{ top: 0, bottom: 1, left: 0, right: 0 }],
+      [1, 0], // display row → data row
+    );
+  });
+
+  it('does not sort on Shift/Ctrl header clicks (selection gestures)', () => {
+    const { container } = render(
+      <MasumeGrid data={[['b'], ['a']]} columns={[{ title: 'Name' }]} sortable />,
+    );
+    fireEvent.mouseDown(header('Name'), { ctrlKey: true });
+    expect(colValues(container, 0)).toEqual(['b', 'a']);
+    fireEvent.mouseDown(header('Name'), { shiftKey: true });
+    expect(colValues(container, 0)).toEqual(['b', 'a']);
+  });
+
+  it('ignores clicks on headers that are not sortable', () => {
+    const { container } = render(
+      <MasumeGrid
+        data={[['b', 'y'], ['a', 'x']]}
+        columns={[{ title: 'Name' }, { title: 'Locked', sortable: false }]}
+        sortable
+      />,
+    );
+    fireEvent.mouseDown(header('Locked'));
+    expect(colValues(container, 0)).toEqual(['b', 'a']);
+    expect(header('Locked').getAttribute('aria-sort')).toBeNull();
+    expect(header('Name').getAttribute('aria-sort')).toBe('none');
+  });
+
+  it('sorts number columns numerically and puts empty cells last', () => {
+    const { container } = render(
+      <MasumeGrid
+        data={[['10'], [''], ['9'], ['100']]}
+        columns={[{ title: 'Qty', type: 'number' }]}
+        sortable
+      />,
+    );
+    fireEvent.mouseDown(header('Qty'));
+    expect(colValues(container, 0)).toEqual(['9', '10', '100', '']);
+    fireEvent.mouseDown(header('Qty'));
+    expect(colValues(container, 0)).toEqual(['100', '10', '9', '']); // blanks stay last
+  });
+
+  it('sorts select columns by option order and checkbox columns by state', () => {
+    const { container } = render(
+      <MasumeGrid
+        data={[
+          ['C02', ''],
+          ['C01', 'true'],
+        ]}
+        columns={[
+          { title: 'Cat', type: 'select', options: [{ value: 'C01', label: 'Fruit' }, { value: 'C02', label: 'Veg' }] },
+          { title: 'Done', type: 'checkbox' },
+        ]}
+        sortable
+      />,
+    );
+    // Select cells render their label plus the dropdown arrow glyph.
+    fireEvent.mouseDown(header('Cat'));
+    expect(colValues(container, 0)).toEqual(['Fruit▾', 'Veg▾']);
+    fireEvent.mouseDown(header('Done'));
+    expect(colValues(container, 0)).toEqual(['Veg▾', 'Fruit▾']); // unchecked row first
+  });
+
+  it('uses ColumnDef.compare when provided', () => {
+    const { container } = render(
+      <MasumeGrid
+        data={[['bbb'], ['a'], ['cc']]}
+        columns={[{ title: 'Name', compare: (a, b) => a.length - b.length }]}
+        sortable
+      />,
+    );
+    fireEvent.mouseDown(header('Name'));
+    expect(colValues(container, 0)).toEqual(['a', 'cc', 'bbb']);
+  });
+
+  it('applies defaultSort on mount', () => {
+    const { container } = render(
+      <MasumeGrid
+        data={[['b'], ['a']]}
+        columns={[{ title: 'Name' }]}
+        sortable
+        defaultSort={{ col: 0, direction: 'desc' }}
+      />,
+    );
+    expect(colValues(container, 0)).toEqual(['b', 'a']);
+    expect(header('Name').getAttribute('aria-sort')).toBe('descending');
+  });
+
+  it('writes edits and deletes to the underlying data row while sorted', () => {
+    const onChange = vi.fn();
+    const onCellChange = vi.fn();
+    const { container } = render(
+      <MasumeGrid
+        data={[
+          ['b', '1'],
+          ['a', '2'],
+        ]}
+        columns={[{ title: 'Name' }, { title: 'Qty' }]}
+        sortable
+        onChange={onChange}
+        onCellChange={onCellChange}
+      />,
+    );
+    fireEvent.mouseDown(header('Name')); // ascending: data row 1 is displayed first
+    fireEvent.mouseDown(container.querySelector('[data-row="0"][data-col="1"]')!);
+    fireEvent.keyDown(editor(), { key: 'F2' });
+    fireEvent.change(editor(), { target: { value: '99' } });
+    fireEvent.keyDown(editor(), { key: 'Enter' });
+    expect(onCellChange).toHaveBeenCalledWith(1, 1, '99');
+    expect(onChange).toHaveBeenCalledWith([
+      ['b', '1'],
+      ['a', '99'],
+    ]);
+
+    onChange.mockClear();
+    fireEvent.mouseDown(container.querySelector('[data-row="1"][data-col="0"]')!);
+    fireEvent.keyDown(editor(), { key: 'Delete' });
+    expect(onChange).toHaveBeenCalledWith([
+      ['', '1'],
+      ['a', '2'],
+    ]);
+  });
+
+  it('passes data row indices to getCellProps and templates while sorted', () => {
+    const { container } = render(
+      <MasumeGrid
+        data={[['b'], ['a']]}
+        columns={[
+          { title: 'Name' },
+          { type: 'template', sortable: false, template: ({ row }) => <span>row{row}</span> },
+        ]}
+        getCellProps={(row) => ({ className: `data-row-${row}` })}
+        sortable
+      />,
+    );
+    fireEvent.mouseDown(header('Name'));
+    expect(colValues(container, 1)).toEqual(['row1', 'row0']);
+    expect(container.querySelector('[data-row="0"][data-col="0"]')!.className).toContain(
+      'data-row-1',
+    );
+  });
+
+  it('copies the selection in display order while sorted', () => {
+    const setData = vi.fn();
+    const { container } = render(
+      <MasumeGrid data={[['b'], ['a']]} columns={[{ title: 'Name' }]} sortable />,
+    );
+    fireEvent.mouseDown(header('Name'));
+    fireEvent.mouseDown(container.querySelector('[data-row="0"][data-col="0"]')!);
+    fireEvent.keyDown(editor(), { key: 'a', ctrlKey: true });
+    fireEvent.copy(editor(), { clipboardData: { setData } });
+    expect(setData).toHaveBeenCalledWith('text/plain', 'a\nb');
+  });
+
+  it('pastes across display rows while sorted, writing to their data rows', () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <MasumeGrid
+        data={[['b'], ['a']]}
+        columns={[{ title: 'Name' }]}
+        sortable
+        onChange={onChange}
+      />,
+    );
+    fireEvent.mouseDown(header('Name')); // display order: data rows [1, 0]
+    fireEvent.mouseDown(container.querySelector('[data-row="0"][data-col="0"]')!);
+    fireEvent.paste(editor(), { clipboardData: { getData: () => 'x\ny' } });
+    expect(onChange).toHaveBeenCalledWith([['y'], ['x']]);
+  });
+
+  it('keeps the sorted order stable while cells are edited', () => {
+    function Controlled() {
+      const [data, setData] = useState<string[][]>([['b'], ['a'], ['c']]);
+      return (
+        <MasumeGrid data={data} columns={[{ title: 'Name' }]} onChange={setData} sortable />
+      );
+    }
+    const { container } = render(<Controlled />);
+    fireEvent.mouseDown(header('Name'));
+    expect(colValues(container, 0)).toEqual(['a', 'b', 'c']);
+    // Editing the first row to 'z' must not make it jump to the end.
+    fireEvent.mouseDown(container.querySelector('[data-row="0"][data-col="0"]')!);
+    fireEvent.keyDown(editor(), { key: 'F2' });
+    fireEvent.change(editor(), { target: { value: 'z' } });
+    fireEvent.keyDown(editor(), { key: 'Enter' });
+    expect(colValues(container, 0)).toEqual(['z', 'b', 'c']);
+    // Re-sorting picks up the new value.
+    fireEvent.mouseDown(header('Name'));
+    fireEvent.mouseDown(header('Name'));
+    fireEvent.mouseDown(header('Name'));
+    expect(colValues(container, 0)).toEqual(['b', 'c', 'z']);
+  });
+
+  it('keeps the appendBlankRow row at the bottom while sorted', () => {
+    function Controlled() {
+      const [data, setData] = useState<string[][]>([['b'], ['a']]);
+      return (
+        <MasumeGrid
+          data={data}
+          columns={[{ title: 'Name' }]}
+          onChange={setData}
+          sortable
+          appendBlankRow
+        />
+      );
+    }
+    const { container } = render(<Controlled />);
+    fireEvent.mouseDown(header('Name'));
+    expect(colValues(container, 0)).toEqual(['a', 'b', '']);
+    fireEvent.mouseDown(container.querySelector('[data-row="2"][data-col="0"]')!);
+    fireEvent.change(editor(), { target: { value: 'zz' } });
+    fireEvent.keyDown(editor(), { key: 'Enter' });
+    // The committed row joins the end; a fresh blank row follows it.
+    expect(colValues(container, 0)).toEqual(['a', 'b', 'zz', '']);
   });
 
   it('does not render column templates in the blank row', () => {

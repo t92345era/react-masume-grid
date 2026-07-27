@@ -41,6 +41,7 @@ export default function App() {
   const [useColumns, setUseColumns] = useState(true);
   const [resizable, setResizable] = useState(true);
   const [appendBlankRow, setAppendBlankRow] = useState(true);
+  const [sortable, setSortable] = useState(true);
   const [selectionLabel, setSelectionLabel] = useState('');
 
   const columns = useMemo<ColumnDef[] | undefined>(
@@ -165,6 +166,14 @@ export default function App() {
           />
           末尾に空行を追加
         </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={sortable}
+            onChange={(e) => setSortable(e.target.checked)}
+          />
+          ヘッダクリックでソート
+        </label>
         <span className="demo-selection">{selectionLabel}</span>
       </div>
       <MasumeGrid
@@ -181,6 +190,8 @@ export default function App() {
             return { readOnly: true, className: 'demo-cell-locked' };
         }}
         appendBlankRow={appendBlankRow}
+        sortable={sortable}
+        onSortChange={(sort) => console.log('sort', sort)}
         showRowNumbers={showRowNumbers}
         showHeader={showHeader}
         readOnly={readOnly}
@@ -200,6 +211,9 @@ export default function App() {
         検品済の行は「単価」「数量」が編集ロック（グレー表示）、数量が 0 のセルは警告ハイライトされます。
         appendBlankRow により最終行の下に入力用の空行が1行表示され、そこに値を入力して確定すると行が追加されます
         （末尾までスクロールして試せます）。
+        sortable を有効にすると、ヘッダクリックで昇順 → 降順 → 解除の順にソートできます
+        （列の選択も同時に行われます。並ぶのは表示だけで data は並べ替わりません。
+        「金額」「操作」のテンプレート型列は既定でソート対象外）。
       </p>
     </div>
   );

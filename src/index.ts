@@ -8,6 +8,8 @@ export type {
   MasumeGridProps,
   NormalizedRange,
   SelectOption,
+  SortDirection,
+  SortState,
   TemplateCellContext,
 } from './types';
 export {

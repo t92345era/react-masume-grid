@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { CellPos, CellValue, MasumeGridProps, NormalizedRange } from './types';
+import type { CellPos, CellValue, MasumeGridProps, NormalizedRange, SortState } from './types';
 import type { SelRange } from './utils';
 import {
   clamp,
@@ -47,12 +47,15 @@ export function MasumeGrid({
   onCellChange,
   onSelectionChange,
   onColumnResize,
+  onSortChange,
   getCellProps,
   appendBlankRow = false,
   showRowNumbers = true,
   showHeader = true,
   readOnly = false,
   resizableColumns = true,
+  sortable = false,
+  defaultSort = null,
   rowHeight = 28,
   headerHeight = 28,
   defaultColumnWidth = 120,
@@ -118,6 +121,8 @@ export function MasumeGrid({
   editingRef.current = editing;
   const editValueRef = useRef(editValue);
   editValueRef.current = editValue;
+  // Display→data row map of the current render, for effects that run after it.
+  const viewToDataRef = useRef<number[] | null>(null);
   // Set when a write materialized the blank row: `data` grows only after the
   // parent re-renders, so the caret is allowed one row past `rowCount` in the
   // meantime (that row is the blank row that is about to appear).
@@ -138,7 +143,8 @@ export function MasumeGrid({
   );
 
   useEffect(() => {
-    onSelectionChange?.(normRanges);
+    // Ranges are display rows; `viewToData` maps them back to data rows.
+    onSelectionChange?.(normRanges, viewToDataRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [normRanges]);
 
@@ -151,14 +157,6 @@ export function MasumeGrid({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-
-  const canEditCell = useCallback(
-    (row: number, col: number) =>
-      !readOnly &&
-      !columns?.[col]?.readOnly &&
-      !getCellProps?.(row, col, data[row]?.[col] ?? '')?.readOnly,
-    [readOnly, columns, getCellProps, data],
-  );
 
   // ----- cell types -----------------------------------------------------
 
@@ -196,6 +194,138 @@ export function MasumeGrid({
     return map;
   }, [selectOptions]);
 
+  // ----- sorting ----------------------------------------------------------
+
+  // Sorting reorders the *view* only; `data` is never touched. Everything
+  // the host sees (onChange, onCellChange, getCellProps, template) keeps
+  // using data indices, so every read/write below goes through `toDataRow`.
+  const [sort, setSort] = useState<SortState | null>(defaultSort);
+
+  const canSortCol = useCallback(
+    (col: number) => {
+      const def = columns?.[col];
+      if (def?.sortable !== undefined) return def.sortable;
+      // A template column renders whatever it likes; its stored value is
+      // usually empty, so ordering by it would be meaningless.
+      if ((def?.type ?? 'text') === 'template') return false;
+      return sortable;
+    },
+    [columns, sortable],
+  );
+
+  const activeSort = sort && sort.col < colCount && canSortCol(sort.col) ? sort : null;
+
+  /**
+   * Sort key for a cell, derived from the column type. Computed once per
+   * row (decorate-sort-undecorate) rather than inside the comparator.
+   */
+  const sortKeyOf = useCallback(
+    (col: number, value: CellValue): string | number | null => {
+      // An unchecked checkbox is stored as '' but means false, not "blank".
+      if (colType(col) === 'checkbox') return isCheckboxChecked(value) ? 1 : 0;
+      if (value === '') return null; // empty: always last, both directions
+      switch (colType(col)) {
+        case 'number': {
+          const n = Number(normalizeNumberInput(value) ?? value);
+          return Number.isFinite(n) ? n : null;
+        }
+        case 'date':
+          return normalizeDateInput(value) ?? value; // ISO sorts chronologically
+        case 'select': {
+          // Option order is usually meaningful (status columns, …); values
+          // outside the option list sort after the known ones.
+          const opts = selectOptions.get(col) ?? [];
+          const i = opts.findIndex((o) => o.value === value);
+          return i < 0 ? opts.length : i;
+        }
+        default:
+          return value;
+      }
+    },
+    [colType, selectOptions],
+  );
+
+  /**
+   * Display order as data-row indices, or null while unsorted (display row
+   * === data row). Recomputed only when the user re-sorts or rows are
+   * removed: editing a cell must not make its row jump away mid-entry
+   * (Excel/Sheets behave the same), and rows appended by `appendBlankRow`
+   * simply join the end.
+   */
+  const orderRef = useRef<{ sort: SortState; order: number[] } | null>(null);
+  const viewToData = useMemo(() => {
+    if (!activeSort) {
+      orderRef.current = null;
+      return null;
+    }
+    const prev = orderRef.current;
+    if (prev && prev.sort === activeSort && prev.order.length <= dataRowCount) {
+      if (prev.order.length === dataRowCount) return prev.order;
+      const grown = prev.order.slice();
+      for (let i = prev.order.length; i < dataRowCount; i++) grown.push(i);
+      orderRef.current = { sort: activeSort, order: grown };
+      return grown;
+    }
+    const { col, direction } = activeSort;
+    const compare = columns?.[col]?.compare;
+    const dir = direction === 'asc' ? 1 : -1;
+    const order = Array.from({ length: dataRowCount }, (_, i) => i);
+    if (compare) {
+      order.sort((ia, ib) => dir * compare(data[ia]?.[col] ?? '', data[ib]?.[col] ?? ''));
+    } else {
+      const keys = order.map((i) => sortKeyOf(col, data[i]?.[col] ?? ''));
+      order.sort((ia, ib) => {
+        const a = keys[ia];
+        const b = keys[ib];
+        if (a === null || b === null) return a === b ? 0 : a === null ? 1 : -1;
+        if (typeof a === 'number' && typeof b === 'number') return dir * (a - b);
+        // Numeric collation keeps "item2" before "item10".
+        return (
+          dir * String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' })
+        );
+      });
+    }
+    orderRef.current = { sort: activeSort, order };
+    return order;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSort, data, dataRowCount, columns, sortKeyOf]);
+
+  viewToDataRef.current = viewToData;
+
+  /**
+   * Display row → `data` row. Rows past the data (the `appendBlankRow` row)
+   * map to themselves, so a commit there still appends at `data.length`.
+   */
+  const toDataRow = useCallback(
+    (viewRow: number) => viewToData?.[viewRow] ?? viewRow,
+    [viewToData],
+  );
+
+  const toggleSort = (col: number) => {
+    const next: SortState | null =
+      activeSort?.col !== col
+        ? { col, direction: 'asc' }
+        : activeSort.direction === 'asc'
+          ? { col, direction: 'desc' }
+          : null; // third click restores the original order
+    setSort(next);
+    onSortChange?.(next);
+  };
+
+  // ----- editability ------------------------------------------------------
+
+  const canEditCell = useCallback(
+    (row: number, col: number) => {
+      const dr = toDataRow(row);
+      return (
+        !readOnly &&
+        !columns?.[col]?.readOnly &&
+        !getCellProps?.(dr, col, data[dr]?.[col] ?? '')?.readOnly
+      );
+    },
+    [readOnly, columns, getCellProps, data, toDataRow],
+  );
+
   /**
    * Normalize a value for the column's type.
    * Returns the value to store, or null when the input is invalid
@@ -227,6 +357,7 @@ export function MasumeGrid({
 
   // ----- data mutation -------------------------------------------------
 
+  /** Changes arrive in display rows; everything past this point is data rows. */
   const applyCellValues = useCallback(
     (changes: CellChange[]) => {
       const applicable: CellChange[] = [];
@@ -234,8 +365,9 @@ export function MasumeGrid({
         if (!canEditCell(ch.row, ch.col)) continue;
         const value = coerceValue(ch.col, ch.value);
         if (value === null) continue; // invalid for the column type
-        if ((data[ch.row]?.[ch.col] ?? '') === value) continue; // no-op write
-        applicable.push(value === ch.value ? ch : { ...ch, value });
+        const row = toDataRow(ch.row);
+        if ((data[row]?.[ch.col] ?? '') === value) continue; // no-op write
+        applicable.push({ row, col: ch.col, value });
       }
       if (applicable.length === 0) return;
       if (applicable.some((ch) => ch.row >= data.length)) grewRowsRef.current = true;
@@ -257,15 +389,15 @@ export function MasumeGrid({
         onChange(next);
       }
     },
-    [canEditCell, coerceValue, data, onChange, onCellChange],
+    [canEditCell, coerceValue, data, toDataRow, onChange, onCellChange],
   );
 
   const toggleCheckbox = useCallback(
     (pos: CellPos) => {
-      const raw = data[pos.row]?.[pos.col] ?? '';
+      const raw = data[toDataRow(pos.row)]?.[pos.col] ?? '';
       applyCellValues([{ row: pos.row, col: pos.col, value: isCheckboxChecked(raw) ? '' : 'true' }]);
     },
-    [data, applyCellValues],
+    [data, toDataRow, applyCellValues],
   );
 
   /** Space on a checkbox cell: toggle every selected checkbox cell. */
@@ -279,7 +411,7 @@ export function MasumeGrid({
           const key = r * Math.max(1, colCount) + c;
           if (seen.has(key)) continue;
           seen.add(key);
-          const raw = data[r]?.[c] ?? '';
+          const raw = data[toDataRow(r)]?.[c] ?? '';
           changes.push({ row: r, col: c, value: isCheckboxChecked(raw) ? '' : 'true' });
         }
       }
@@ -300,7 +432,7 @@ export function MasumeGrid({
           colType(ed.col) === 'date' && dateRef.current?.validity.badInput === true;
         if (!dateBadInput) {
           const value = overrideValue ?? editValueRef.current;
-          const current = data[ed.row]?.[ed.col] ?? '';
+          const current = data[toDataRow(ed.row)]?.[ed.col] ?? '';
           if (value !== current) {
             applyCellValues([{ row: ed.row, col: ed.col, value }]);
           }
@@ -311,7 +443,7 @@ export function MasumeGrid({
       setOptionFilter(null);
       composingRef.current = false;
     },
-    [colType, data, applyCellValues],
+    [colType, data, toDataRow, applyCellValues],
   );
 
   const scrollCellIntoView = useCallback(
@@ -338,7 +470,7 @@ export function MasumeGrid({
       const type = colType(target.col);
       if (type === 'checkbox') return; // toggled by click/Space, never text-edited
       if (type === 'template') return; // rendered by the column's component
-      let initial = mode === 'edit' ? (data[target.row]?.[target.col] ?? '') : '';
+      let initial = mode === 'edit' ? (data[toDataRow(target.row)]?.[target.col] ?? '') : '';
       // The native date input only accepts ISO values.
       if (type === 'date') initial = normalizeDateInput(initial) ?? '';
       // Select cells display labels, so editing must start from the label
@@ -357,7 +489,7 @@ export function MasumeGrid({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [active.row, active.col, rowCount, colCount, canEditCell, colType, optionLabelByValue, data, scrollCellIntoView],
+    [active.row, active.col, rowCount, colCount, canEditCell, colType, optionLabelByValue, data, toDataRow, scrollCellIntoView],
   );
 
   // When the sticky overlays change size (row numbers / header toggled),
@@ -396,7 +528,7 @@ export function MasumeGrid({
     if (!editing || !dropdownOptions) return;
     let idx = dropdownOptions.findIndex((o) => o.value === editValue || o.label === editValue);
     if (idx < 0 && optionFilter === null) {
-      const raw = data[editing.row]?.[editing.col] ?? '';
+      const raw = data[toDataRow(editing.row)]?.[editing.col] ?? '';
       idx = dropdownOptions.findIndex((o) => o.value === raw);
     }
     // Non-filterable dropdown: typing jumps the highlight to the first
@@ -457,7 +589,8 @@ export function MasumeGrid({
     const matrix: string[][] = [];
     for (let r = nr.top; r <= nr.bottom; r++) {
       const row: string[] = [];
-      for (let c = nr.left; c <= nr.right; c++) row.push(data[r]?.[c] ?? '');
+      // Copied in display order — what you see is what lands in Excel.
+      for (let c = nr.left; c <= nr.right; c++) row.push(data[toDataRow(r)]?.[c] ?? '');
       matrix.push(row);
     }
     return matrixToTSV(matrix);
@@ -497,7 +630,7 @@ export function MasumeGrid({
           const key = r * Math.max(1, colCount) + c;
           if (seen.has(key)) continue;
           seen.add(key);
-          if ((data[r]?.[c] ?? '') !== '') changes.push({ row: r, col: c, value: '' });
+          if ((data[toDataRow(r)]?.[c] ?? '') !== '') changes.push({ row: r, col: c, value: '' });
         }
       }
     }
@@ -931,6 +1064,9 @@ export function MasumeGrid({
     }
     if (hcolEl) {
       const c = Number(hcolEl.dataset.hcol);
+      // A plain click sorts *and* selects the column; the Shift/Ctrl(⌘)
+      // gestures stay pure selection so multi-range selection still works.
+      if (!e.shiftKey && !mod && canSortCol(c)) toggleSort(c);
       applyRangeSelection(
         { anchor: { row: 0, col: c }, focus: { row: rowCount - 1, col: c } },
         e.shiftKey,
@@ -1024,6 +1160,9 @@ export function MasumeGrid({
   const rows: React.ReactNode[] = [];
   for (let r = startRow; r < endRow; r++) {
     const isBlankRow = hasBlankRow && r >= dataRowCount;
+    // Row indices handed to the host (values, getCellProps, template) are
+    // always data indices, even while the view is sorted.
+    const dataRow = toDataRow(r);
     const cells: React.ReactNode[] = [];
     if (showRowNumbers) {
       cells.push(
@@ -1049,8 +1188,8 @@ export function MasumeGrid({
       );
       const isActive = r === active.row && c === active.col;
       const type = colType(c);
-      const raw = data[r]?.[c] ?? '';
-      const extra = getCellProps?.(r, c, raw) ?? undefined;
+      const raw = data[dataRow]?.[c] ?? '';
+      const extra = getCellProps?.(dataRow, c, raw) ?? undefined;
       const editable = !readOnly && !columns?.[c]?.readOnly && !extra?.readOnly;
       const format = columns?.[c]?.format;
       const display =
@@ -1093,7 +1232,9 @@ export function MasumeGrid({
           ) : type === 'template' ? (
             // The blank row has no data record yet, so row templates (action
             // buttons, values derived from `data[row]`, …) are not rendered.
-            isBlankRow ? null : (columns?.[c]?.template?.({ row: r, col: c, value: raw }) ?? display)
+            isBlankRow ? null : (
+              (columns?.[c]?.template?.({ row: dataRow, col: c, value: raw }) ?? display)
+            )
           ) : (
             display
           )}
@@ -1175,10 +1316,37 @@ export function MasumeGrid({
               data-hcol={c}
               role="columnheader"
               aria-colindex={c + ariaColBase}
-              className={'masume-grid-hcell' + (isColSelected(c) ? ' masume-grid-hcell--sel' : '')}
+              aria-sort={
+                !canSortCol(c)
+                  ? undefined
+                  : activeSort?.col !== c
+                    ? 'none'
+                    : activeSort.direction === 'asc'
+                      ? 'ascending'
+                      : 'descending'
+              }
+              className={
+                'masume-grid-hcell' +
+                (isColSelected(c) ? ' masume-grid-hcell--sel' : '') +
+                (canSortCol(c) ? ' masume-grid-hcell--sortable' : '') +
+                (activeSort?.col === c ? ' masume-grid-hcell--sorted' : '')
+              }
               style={{ width: widths[c], height: headerH }}
             >
               <span className="masume-grid-hcell-label">{columns?.[c]?.title ?? colName(c)}</span>
+              {/* Every sortable column keeps an indicator so the affordance is
+                  visible before the first click; it only lights up once sorted. */}
+              {canSortCol(c) && (
+                <span
+                  className={
+                    'masume-grid-sort-arrow' +
+                    (activeSort?.col === c ? '' : ' masume-grid-sort-arrow--none')
+                  }
+                  aria-hidden="true"
+                >
+                  {activeSort?.col !== c ? '⇅' : activeSort.direction === 'asc' ? '▲' : '▼'}
+                </span>
+              )}
               {canResizeCol(c) && (
                 <div
                   className={

@@ -82,6 +82,19 @@ export interface ColumnDef {
    * Overrides the grid-level `resizableColumns`.
    */
   resizable?: boolean;
+  /**
+   * Allow sorting by this column's header. Overrides the grid-level
+   * `sortable`. Defaults to `sortable` for every type except 'template',
+   * whose rendered content has no meaningful stored value to order by.
+   */
+  sortable?: boolean;
+  /**
+   * Custom sort comparator for this column, called with the two stored
+   * values. Replaces the type-derived ordering entirely, including the
+   * "empty cells last" rule. Return <0, 0 or >0 like `Array#sort`; the
+   * result is negated for descending order.
+   */
+  compare?: (a: CellValue, b: CellValue) => number;
 }
 
 /** Per-cell overrides returned by `MasumeGridProps.getCellProps`. */
@@ -100,6 +113,15 @@ export interface CellProps {
 export interface CellPos {
   row: number;
   col: number;
+}
+
+export type SortDirection = 'asc' | 'desc';
+
+/** Which column the view is sorted by, and in which direction. */
+export interface SortState {
+  /** Column index. */
+  col: number;
+  direction: SortDirection;
 }
 
 /** Inclusive, normalized rectangular range (top <= bottom, left <= right). */
@@ -122,10 +144,21 @@ export interface MasumeGridProps {
   onChange?: (next: CellValue[][]) => void;
   /** Called once per changed cell. Can be used instead of (or with) `onChange`. */
   onCellChange?: (row: number, col: number, value: CellValue) => void;
-  /** Called whenever the selection changes, with normalized ranges. */
-  onSelectionChange?: (ranges: NormalizedRange[]) => void;
+  /**
+   * Called whenever the selection changes, with normalized ranges.
+   * Range rows are **display** rows: while the grid is sorted they differ
+   * from the `data` indices, so `viewToData` is passed alongside to map
+   * them back (`viewToData[row]`). It is `null` when the grid is unsorted,
+   * where display rows and data rows are the same.
+   */
+  onSelectionChange?: (
+    ranges: NormalizedRange[],
+    viewToData: readonly number[] | null,
+  ) => void;
   /** Called when a column resize drag finishes, with the final width in pixels. */
   onColumnResize?: (col: number, width: number) => void;
+  /** Called on every header-click sort change (`null` = sorting cleared). */
+  onSortChange?: (sort: SortState | null) => void;
   /**
    * Per-cell overrides: return `readOnly`, `className` and/or `style` for a
    * cell (e.g. validation-error highlighting, locking individual cells).
@@ -155,6 +188,18 @@ export interface MasumeGridProps {
    * Requires `showHeader` (handles live in the header row).
    */
   resizableColumns?: boolean;
+  /**
+   * Sort the view by clicking a column header (ascending → descending →
+   * unsorted). `data` is never reordered — only the display order changes,
+   * so `onChange` / `onCellChange` / `getCellProps` / `template` keep using
+   * `data` indices. Override per column with `ColumnDef.sortable` and
+   * `ColumnDef.compare`. The sort state lives inside the component (like
+   * drag-resized column widths); observe it with `onSortChange`.
+   * Requires `showHeader` (sorting is a header gesture). Default: false.
+   */
+  sortable?: boolean;
+  /** Initial sort while `sortable` is on. Default: unsorted. */
+  defaultSort?: SortState | null;
   /** Row height in pixels. Default: 28. */
   rowHeight?: number;
   /** Header row height in pixels. Default: 28. */
