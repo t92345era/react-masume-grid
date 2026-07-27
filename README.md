@@ -289,6 +289,37 @@ npm run build      # library build into dist/ (ESM + CJS + d.ts + CSS)
 - No undo / redo (the `onChange`-based design lets the host app manage history)
 - No merged cells, formulas, or double-click auto-fit for column widths
 
+## Changelog
+
+Published on [npm](https://www.npmjs.com/package/react-masume-grid). Every release so far is additive — no breaking changes.
+
+### 0.5.0 — 2026-07-27
+
+- **Header-click sorting** (`sortable`, `defaultSort`, `onSortChange`, `ColumnDef.sortable`, `ColumnDef.compare`): ascending → descending → unsorted per click, sorting the view without reordering `data`. Type-aware default ordering, empty cells last, always-visible right-edge indicator, `aria-sort`. See [Sorting](#sorting)
+- **Trailing blank row** (`appendBlankRow`): a spreadsheet-style "new record" row that turns into a real row once a value is committed. See [Trailing blank row](#trailing-blank-row)
+- `onSelectionChange` now receives a second `viewToData` argument mapping display rows to data rows while sorted (`null` when unsorted)
+
+### 0.4.0 — 2026-07-25
+
+- ARIA grid semantics: `grid` / `row` / `gridcell` / `columnheader` / `rowheader` / `rowgroup` roles, 1-based row/column indices that survive row virtualization, `aria-multiselectable` / `aria-readonly` / `aria-activedescendant`
+- `getCellProps(row, col, value)` for per-cell `readOnly` / `className` / `style` overrides. See [Per-cell overrides](#per-cell-overrides)
+- `ColumnDef.format` for display-only formatting, plus the exported `formatThousands` helper. See [Display formatting](#display-formatting)
+
+### 0.3.0 — 2026-07-20
+
+- `template` cell type: render any React component in a cell, with interactive elements receiving clicks natively. See [Template cells](#template-cells)
+- Marching-ants outline on the copied/cut range, cleared by Escape, paste or the next edit
+
+### 0.2.0 — 2026-07-12
+
+- `checkbox` cell type: click or Space to toggle (Space toggles every selected checkbox cell), with Excel-compatible paste normalization (`TRUE`/`FALSE`, `1`/`0`, `yes`/`no`)
+- `ColumnDef.filterable` for select columns (`false` keeps the full option list and jumps the highlight to the first prefix match)
+- Exported `normalizeCheckboxInput` / `isCheckboxChecked`
+
+### 0.1.0 — 2026-07-06
+
+- Initial release: virtualized grid, IME-friendly cell editing, `text` / `number` / `select` / `date` cell types, range selection (drag, Shift, Ctrl(⌘) multi-range, row/column headers), Excel-compatible TSV copy & paste, drag-to-resize columns
+
 ## License
 
 MIT

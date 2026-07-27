@@ -289,6 +289,37 @@ npm run build      # dist/ へライブラリビルド (ESM + CJS + d.ts + CSS)
 - アンドゥ / リドゥは未実装（`onChange` ベースなので利用側で履歴管理が可能）
 - セル結合、数式、列幅ダブルクリックでの自動フィットは未対応
 
+## 更新履歴
+
+[npm](https://www.npmjs.com/package/react-masume-grid) で公開しています。これまでのリリースはすべて追加のみで、破壊的変更はありません。
+
+### 0.5.0 — 2026-07-27
+
+- **ヘッダクリックによるソート**（`sortable` / `defaultSort` / `onSortChange` / `ColumnDef.sortable` / `ColumnDef.compare`）: クリックごとに昇順 → 降順 → 解除。並べ替わるのは表示だけで `data` は不変。型ごとの既定の並び順、空セルは常に末尾、右端に常時表示されるインジケータ、`aria-sort` 対応。[ソート](#ソート)を参照
+- **末尾の空行**（`appendBlankRow`）: スプレッドシート風の「新規入力行」。値を確定した時点で実際の行になります。[末尾の空行](#末尾の空行)を参照
+- `onSelectionChange` の第2引数に `viewToData`（ソート中の表示行→データ行の対応。未ソート時は `null`）を追加
+
+### 0.4.0 — 2026-07-25
+
+- ARIA グリッドセマンティクス: `grid` / `row` / `gridcell` / `columnheader` / `rowheader` / `rowgroup` ロール、行仮想化でも維持される 1 始まりの行・列インデックス、`aria-multiselectable` / `aria-readonly` / `aria-activedescendant`
+- `getCellProps(row, col, value)` によるセル単位の `readOnly` / `className` / `style` の上書き。[セル単位の上書き](#セル単位の上書き)を参照
+- `ColumnDef.format`（表示専用フォーマット）と `formatThousands` ヘルパーの公開。[表示フォーマット](#表示フォーマット)を参照
+
+### 0.3.0 — 2026-07-20
+
+- `template` セル型: 任意の React コンポーネントをセルに描画。内部のボタン等はネイティブにクリック可能。[テンプレート型セル](#テンプレート型セル)を参照
+- コピー / 切り取り範囲のマーチングアンツ表示（Escape・貼り付け・編集開始で消える）
+
+### 0.2.0 — 2026-07-12
+
+- `checkbox` セル型: クリックまたは Space でトグル（Space は選択中のチェックボックスセルを一括トグル）。Excel からの貼り付け（`TRUE`/`FALSE`・`1`/`0`・`yes`/`no`）を正規化
+- select 列の `ColumnDef.filterable`（`false` で常に全候補を表示し、文字入力は先頭一致の候補へハイライトを移動）
+- `normalizeCheckboxInput` / `isCheckboxChecked` を公開
+
+### 0.1.0 — 2026-07-06
+
+- 初回リリース: 行の仮想化描画、IME 対応のセル編集、`text` / `number` / `select` / `date` セル型、範囲選択（ドラッグ・Shift・Ctrl(⌘) の複数範囲・行/列ヘッダー）、Excel 互換の TSV コピー＆ペースト、ドラッグでの列幅リサイズ
+
 ## License
 
 MIT
