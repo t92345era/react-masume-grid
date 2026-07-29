@@ -4,7 +4,7 @@
 
 軽量・汎用の React スプレッドシートコンポーネント。依存は React のみ（gzip 約 5KB）。
 
-- **グリッド表示** — 行番号・ヘッダーの表示/非表示切り替え、列幅指定、ドラッグでの列幅リサイズ、ヘッダクリックによるソート、末尾の入力用空行、行の仮想化描画（数万行でも軽快）
+- **グリッド表示** — 行番号・ヘッダーの表示/非表示切り替え、列幅指定、ドラッグでの列幅リサイズ、ヘッダクリックによるソート、Excel 風のヘッダフィルタ、末尾の入力用空行、行の仮想化描画（数万行でも軽快）
 - **セル型** — 文字列 / 数値（全角・カンマ正規化）/ 選択肢（マスタデータのプルダウン、コード保存・ラベル表示）/ 日付（カレンダー入力、和式表記の貼り付け正規化）/ チェックボックス（クリック / Space でトグル）/ テンプレート（任意のコンポーネントをセルに描画）
 - **セル編集** — ダブルクリック / F2 / キー入力で編集開始。**日本語 IME 完全対応**（IMEオンで「A」を打つとセルが編集状態になり「あ」が入力される）
 - **範囲選択** — マウスドラッグ、Shift+クリック/矢印キーで拡張、Ctrl(⌘)+クリックで複数範囲追加。行・列ヘッダークリックで行/列選択、左上コーナーで全選択
@@ -58,12 +58,13 @@ function App() {
 | Prop | 型 | 既定値 | 説明 |
 | --- | --- | --- | --- |
 | `data` | `string[][]` | （必須） | グリッドの内容。行の長さは不揃いでも可 |
-| `columns` | `ColumnDef[]` | — | `{ title?, width?, readOnly?, resizable?, sortable?, compare?, type?, options?, strict?, filterable?, template?, format? }` の配列。省略時は data から列数を導出 |
+| `columns` | `ColumnDef[]` | — | `{ title?, width?, readOnly?, resizable?, sortable?, compare?, filter?, filterLabel?, filterMatch?, type?, options?, strict?, filterable?, template?, format? }` の配列。省略時は data から列数を導出 |
 | `onChange` | `(next: string[][]) => void` | — | 編集・貼り付け・削除のたびに新しい 2 次元配列で呼ばれる |
 | `onCellChange` | `(row, col, value) => void` | — | 変更セルごとに呼ばれる。`onChange` の代わり/併用可 |
-| `onSelectionChange` | `(ranges, viewToData) => void` | — | 選択変更時（`{top,left,bottom,right}` の配列）。行は**表示行**で、ソート中は `viewToData` でデータ行に変換できる（未ソート時は `null`） |
+| `onSelectionChange` | `(ranges, viewToData) => void` | — | 選択変更時（`{top,left,bottom,right}` の配列）。行は**表示行**で、ソート・フィルタ中は `viewToData` でデータ行に変換できる（どちらでもない場合は `null`） |
 | `onColumnResize` | `(col, width) => void` | — | 列幅ドラッグの確定時（最終幅 px） |
 | `onSortChange` | `(sort: SortState \| null) => void` | — | ヘッダクリックによるソート変更時（`null` は解除） |
+| `onFilterChange` | `(filters: FilterState) => void` | — | フィルタ変更時。全列分の状態が渡される（`{}` は絞り込みなし） |
 | `getCellProps` | `(row, col, value) => CellProps` | — | セル単位の上書き: `{ readOnly?, className?, style? }`。[セル単位の上書き](#セル単位の上書き)を参照 |
 | `appendBlankRow` | `boolean` | `false` | 末尾に新規入力用の空行を1行表示。[末尾の空行](#末尾の空行)を参照 |
 | `showRowNumbers` | `boolean` | `true` | 行番号列の表示 |
@@ -72,6 +73,9 @@ function App() {
 | `resizableColumns` | `boolean` | `true` | ヘッダー境界のドラッグで列幅を変更可能に。列単位は `ColumnDef.resizable` で上書き（要 `showHeader`） |
 | `sortable` | `boolean` | `false` | ヘッダクリックでソート。[ソート](#ソート)を参照 |
 | `defaultSort` | `SortState \| null` | `null` | 初期ソート状態。例: `{ col: 2, direction: 'asc' }` |
+| `filterable` | `boolean` | `false` | ヘッダから列ごとに絞り込み。[フィルタ](#フィルタ)を参照 |
+| `defaultFilters` | `FilterState \| null` | `null` | 初期フィルタ。例: `{ 2: { type: 'values', values: ['C01'] } }` |
+| `filterTexts` | `Partial<FilterTexts>` | 英語 | フィルタパネルの文言 |
 | `rowHeight` | `number` | `28` | 行の高さ(px) |
 | `headerHeight` | `number` | `28` | ヘッダーの高さ(px) |
 | `defaultColumnWidth` | `number` | `120` | 幅未指定の列の幅(px) |
@@ -144,6 +148,42 @@ function App() {
 - `ColumnDef.sortable` でグリッド全体の設定を列単位に上書きできます。`template` 列は保存値と表示内容が一致しないことが多いため、明示的に指定しない限りソート対象外です。
 - ソート可能な列のヘッダには**右端に常にインジケータ**が表示されます。未ソート時は淡い `⇅`（クリックできることが一目で分かります）、ソート中はアクセントカラーの `▲` / `▼` です。ヘッダには `aria-sort` と `masume-grid-hcell--sortable` / `--sorted` が付き、グリフは `masume-grid-sort-arrow`（未ソート時は `--none` 付き）なのでスタイルを当てられます。
 - ソート状態はコンポーネント内部に保持されます（ドラッグした列幅と同じ扱い）。永続化したい場合は `onSortChange` で保存し、`defaultSort` で復元してください。
+
+### フィルタ
+
+`filterable` を指定すると、各列のヘッダに `▽` ボタンが付きます。クリックすると Excel のオートフィルタと同様に、**列の値のチェックリスト＋検索ボックス**のパネルが開き、チェックを操作した時点で即座に絞り込まれます。
+
+```tsx
+<MasumeGrid
+  data={data}
+  onChange={setData}
+  columns={[
+    { title: '商品コード', filter: 'text' },                     // チェックリストではなくキーワード検索
+    { title: 'カテゴリ', type: 'select', options: CATEGORY_MASTER }, // 一覧にはラベルが並ぶ
+    { title: '単価', type: 'number', format: formatThousands },
+    { title: '検品済', type: 'checkbox' },                       // 設定不要でオン / オフの2択
+    { title: 'メモ', filter: false },                            // この列は絞り込み対象外
+  ]}
+  filterable
+  filterTexts={{
+    all: '(すべて)', blanks: '(空白)', search: '検索', clear: 'クリア', close: '閉じる',
+    checked: '(チェックあり)', unchecked: '(チェックなし)',
+  }}
+  defaultFilters={{ 1: { type: 'values', values: ['C01', 'C02'] } }}
+  onFilterChange={(filters) => saveFilters(filters)}
+/>
+```
+
+- **`data` から行は削られません** — 絞り込まれるのは表示だけで、非表示の行も `onChange` で返る配列にはそのまま残ります。ソートと同様に `onChange` / `onCellChange` / `getCellProps` / `template` には**データ行**のインデックスが渡され、`onSelectionChange` の範囲だけが表示行（`viewToData` で変換できます）。
+- 行番号は表示中の行に対して `1, 2, 3, …` と振り直されます（ソート時と同じ挙動で、飛び番にはなりません）。
+- フィルタもソートと同じく**スナップショット**です。行の再判定はフィルタを変更したときだけ行われるので、絞り込み中に編集して条件から外れた行が入力中に消えることはありません。`appendBlankRow` で追加された行は末尾に加わり、空行は常に最下部に固定されます。
+- `ColumnDef.filter` で列単位に上書きできます。`false` で対象外、`'text'` でチェックリストの代わりにキーワード検索（部分一致・大文字小文字と全角半角を区別しない）、`'values'` / `true` でチェックリストです。`template` 列は明示指定しない限り対象外です。
+- チェックリストに並ぶのは**表示上のテキスト**です（select のラベル、`format` の結果、`ColumnDef.filterLabel(value)`）。同じ表示になる値はまとめて 1 項目として扱われ、空セルは `(空白)`（既定では `(Blanks)`）として並びます。`FilterState` が保持するのはラベルではなく**保存値**です。異なる値が 1,000 種類を超えると一覧は打ち切られ、検索での絞り込みを促すメッセージが表示されます。
+- **`checkbox` 列は設定不要で「チェック状態」による絞り込み**になります。一覧には `(Checked)` / `(Unchecked)`（既定は英語。上の例のように `filterTexts` で変更可能）の2項目だけが並び、`isCheckboxChecked` が真と判定する表記はすべて同じ項目にまとまります。
+- `ColumnDef.filterMatch(value, filter, row)` を指定すると、その列の判定を完全に置き換えられます（数値の範囲指定や、他の列と突き合わせる条件など）。
+- `(すべて)` は**検索で絞り込まれている項目だけ**をまとめてオン / オフします。「検索してヒットしたものだけ残す」が2クリックで済みます。
+- パネルは Escape / Enter / `閉じる` / 外側のクリックで閉じ、`クリア` でその列のフィルタを解除します。ヘッダのボタンには `aria-haspopup` / `aria-expanded`、パネルには `role="dialog"` が付き、絞り込み中はグリフが `▽` → `▼` に変わります（クラス `masume-grid-filter-btn--on`）。
+- フィルタ状態はコンポーネント内部に保持されます。永続化したい場合は `onFilterChange` で保存し、`defaultFilters` で復元してください。パネルの文言は既定が英語なので、`filterTexts`（`all` / `blanks` / `checked` / `unchecked` / `search` / `clear` / `close` / `more` / `button`）で差し替えます。
 
 ## セル型
 
@@ -288,10 +328,16 @@ npm run build      # dist/ へライブラリビルド (ESM + CJS + d.ts + CSS)
 - 列は仮想化していないため、数百列を超える場合は性能に注意
 - アンドゥ / リドゥは未実装（`onChange` ベースなので利用側で履歴管理が可能）
 - セル結合、数式、列幅ダブルクリックでの自動フィットは未対応
+- フィルタパネルはマウス操作のみ（グリッドのキーボード操作はセル単位のため、ボタンはタブ順から外しています）
 
 ## 更新履歴
 
 [npm](https://www.npmjs.com/package/react-masume-grid) で公開しています。これまでのリリースはすべて追加のみで、破壊的変更はありません。
+
+### 0.6.0 — 2026-07-29
+
+- **ヘッダからのフィルタ**（`filterable` / `defaultFilters` / `onFilterChange` / `filterTexts` / `ColumnDef.filter` / `filterLabel` / `filterMatch`）: Excel 風の値チェックリスト（検索ボックス付き）またはキーワード検索で、`data` を変更せずに表示行だけを絞り込み。[フィルタ](#フィルタ)を参照
+- `onSelectionChange` の `viewToData` 引数が、ソート中だけでなくフィルタ中も渡されるようになりました
 
 ### 0.5.0 — 2026-07-27
 

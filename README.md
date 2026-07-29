@@ -4,7 +4,7 @@
 
 A lightweight, generic React spreadsheet component. React is the only dependency (~5KB gzipped).
 
-- **Grid display** — toggleable row numbers and header, per-column widths, drag-to-resize columns, header-click sorting, optional trailing blank row for new entries, virtualized rows (smooth with tens of thousands of rows)
+- **Grid display** — toggleable row numbers and header, per-column widths, drag-to-resize columns, header-click sorting, Excel-style header filtering, optional trailing blank row for new entries, virtualized rows (smooth with tens of thousands of rows)
 - **Cell types** — text / number (normalizes full-width digits and commas) / select (dropdown backed by master data, stores codes while displaying labels) / date (calendar input, normalizes pasted dates in common Japanese formats) / checkbox (click or Space to toggle) / template (render any component per cell)
 - **Cell editing** — start editing by double-click, F2, or just typing. **Full IME support**: with a Japanese IME on, pressing "A" opens the editor and types 「あ」 right into the cell
 - **Range selection** — mouse drag, extend with Shift+click / Shift+arrows, add multiple ranges with Ctrl(⌘)+click. Click row/column headers to select whole rows/columns, the top-left corner to select all
@@ -58,12 +58,13 @@ When `columns` is omitted, the column count is derived from `data` and headers s
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
 | `data` | `string[][]` | (required) | Grid contents. Rows may be ragged |
-| `columns` | `ColumnDef[]` | — | Array of `{ title?, width?, readOnly?, resizable?, sortable?, compare?, type?, options?, strict?, filterable?, template?, format? }`. When omitted, the column count is derived from data |
+| `columns` | `ColumnDef[]` | — | Array of `{ title?, width?, readOnly?, resizable?, sortable?, compare?, filter?, filterLabel?, filterMatch?, type?, options?, strict?, filterable?, template?, format? }`. When omitted, the column count is derived from data |
 | `onChange` | `(next: string[][]) => void` | — | Called with a new 2D array on every edit / paste / delete |
 | `onCellChange` | `(row, col, value) => void` | — | Called once per changed cell. Use instead of (or with) `onChange` |
-| `onSelectionChange` | `(ranges, viewToData) => void` | — | Called when the selection changes (array of `{top,left,bottom,right}`). Rows are display rows; `viewToData` maps them to data rows while sorted (`null` when unsorted) |
+| `onSelectionChange` | `(ranges, viewToData) => void` | — | Called when the selection changes (array of `{top,left,bottom,right}`). Rows are display rows; `viewToData` maps them to data rows while sorted or filtered (`null` when neither) |
 | `onColumnResize` | `(col, width) => void` | — | Called when a column resize drag finishes (final width in px) |
 | `onSortChange` | `(sort: SortState \| null) => void` | — | Called on every header-click sort change (`null` = cleared) |
+| `onFilterChange` | `(filters: FilterState) => void` | — | Called on every filter change, with the full state (`{}` = no filters) |
 | `getCellProps` | `(row, col, value) => CellProps` | — | Per-cell overrides: `{ readOnly?, className?, style? }`. See [Per-cell overrides](#per-cell-overrides) |
 | `appendBlankRow` | `boolean` | `false` | Show a trailing blank row for entering new rows. See [Trailing blank row](#trailing-blank-row) |
 | `showRowNumbers` | `boolean` | `true` | Show the row-number column |
@@ -72,6 +73,9 @@ When `columns` is omitted, the column count is derived from `data` and headers s
 | `resizableColumns` | `boolean` | `true` | Resize columns by dragging header edges. Override per column with `ColumnDef.resizable` (requires `showHeader`) |
 | `sortable` | `boolean` | `false` | Sort by clicking a column header. See [Sorting](#sorting) |
 | `defaultSort` | `SortState \| null` | `null` | Initial sort, e.g. `{ col: 2, direction: 'asc' }` |
+| `filterable` | `boolean` | `false` | Filter rows from the column headers. See [Filtering](#filtering) |
+| `defaultFilters` | `FilterState \| null` | `null` | Initial filters, e.g. `{ 2: { type: 'values', values: ['C01'] } }` |
+| `filterTexts` | `Partial<FilterTexts>` | English | UI strings of the filter panel |
 | `rowHeight` | `number` | `28` | Row height (px) |
 | `headerHeight` | `number` | `28` | Header height (px) |
 | `defaultColumnWidth` | `number` | `120` | Width of columns without an explicit width (px) |
@@ -144,6 +148,38 @@ Column widths are the one uncontrolled exception — widths set by dragging are 
 - `ColumnDef.sortable` overrides the grid-level flag per column. `template` columns are not sortable unless you set it explicitly, since their stored value usually isn't what is rendered.
 - Every sortable header shows an indicator at its **right edge** — a quiet `⇅` while unsorted (so the affordance is visible before the first click), then `▲` / `▼` in the accent color. Headers also get `aria-sort` and `masume-grid-hcell--sortable` / `--sorted`; the glyph is `masume-grid-sort-arrow` (`--none` while unsorted).
 - The sort state lives inside the component (like drag-resized widths). Use `onSortChange` to persist it and `defaultSort` to restore it.
+
+### Filtering
+
+`filterable` puts a `▽` button on every column header. It opens an Excel-style panel: a checklist of the column's distinct values with a search box, applied as you click.
+
+```tsx
+<MasumeGrid
+  data={data}
+  onChange={setData}
+  columns={[
+    { title: 'Code', filter: 'text' },                        // keyword box instead of a checklist
+    { title: 'Category', type: 'select', options: CATEGORIES }, // checklist shows the labels
+    { title: 'Price', type: 'number', format: formatThousands },
+    { title: 'Inspected', type: 'checkbox' },                  // checked / unchecked, no setup
+    { title: 'Note', filter: false },                          // opt this column out
+  ]}
+  filterable
+  defaultFilters={{ 1: { type: 'values', values: ['C01', 'C02'] } }}
+  onFilterChange={(filters) => saveFilters(filters)}
+/>
+```
+
+- **`data` is never trimmed** — only the displayed rows are narrowed, and hidden rows are preserved on every `onChange`. As with sorting, `onChange` / `onCellChange` / `getCellProps` / `template` keep receiving **data** indices; `onSelectionChange` ranges are display rows and come with `viewToData`.
+- Row numbers are renumbered `1, 2, 3, …` over the visible rows (the same behavior as sorting), not left with gaps.
+- Filtering is a **snapshot**, like sorting: rows are re-evaluated when a filter changes, not while cells are edited, so a row you edit out of the filter stays put until the next filter change. Rows appended via `appendBlankRow` join the end, and the blank row always stays at the bottom.
+- `ColumnDef.filter` overrides the grid-level flag per column: `false` opts out, `'text'` swaps the checklist for a keyword box (substring match, case- and width-insensitive), `'values'` / `true` keeps the checklist. `template` columns are not filterable unless set explicitly.
+- The checklist lists **displayed** text: select labels, `format` output, or `ColumnDef.filterLabel(value)`. Values sharing a label are listed — and checked — as one entry, and empty cells appear as `(Blanks)`. Stored values, not labels, are what `FilterState` holds. Beyond 1,000 distinct values the list is cut off and the panel asks the user to search.
+- **`checkbox` columns filter by state**, with no configuration: the panel offers `(Checked)` / `(Unchecked)`, and every spelling that `isCheckboxChecked` accepts falls into the right one.
+- `ColumnDef.filterMatch(value, filter, row)` replaces the built-in matching for a column (e.g. numeric ranges or comparing against another column).
+- `(All)` checks or unchecks everything the search box currently leaves visible, so "search, then keep only the hits" is two clicks.
+- The panel closes on Escape, Enter, `Close`, or a click outside; `Clear` removes the column's filter. Header buttons carry `aria-haspopup` / `aria-expanded`, the panel is a `role="dialog"`, and the glyph fills in (`▽` → `▼`, class `masume-grid-filter-btn--on`) while the column is filtering.
+- Filter state lives inside the component. Use `onFilterChange` to persist it and `defaultFilters` to restore it. Override the panel's English strings with `filterTexts` (`all`, `blanks`, `checked`, `unchecked`, `search`, `clear`, `close`, `more`, `button`).
 
 ## Cell types
 
@@ -287,11 +323,17 @@ npm run build      # library build into dist/ (ESM + CJS + d.ts + CSS)
 - Internal data is always strings (numbers/dates included; use `ColumnDef.format` for display formatting such as thousands separators)
 - Columns are not virtualized — mind performance beyond a few hundred columns
 - No undo / redo (the `onChange`-based design lets the host app manage history)
+- The filter panel opens by mouse only — the grid's keyboard model is cell-based, so its button stays out of the tab order
 - No merged cells, formulas, or double-click auto-fit for column widths
 
 ## Changelog
 
 Published on [npm](https://www.npmjs.com/package/react-masume-grid). Every release so far is additive — no breaking changes.
+
+### 0.6.0 — 2026-07-29
+
+- **Header filtering** (`filterable`, `defaultFilters`, `onFilterChange`, `filterTexts`, `ColumnDef.filter` / `filterLabel` / `filterMatch`): an Excel-style value checklist with a search box, or a keyword box per column, narrowing the view without touching `data`. See [Filtering](#filtering)
+- `onSelectionChange`'s `viewToData` argument is now non-`null` while filtered as well as while sorted
 
 ### 0.5.0 — 2026-07-27
 
