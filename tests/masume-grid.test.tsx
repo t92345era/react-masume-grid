@@ -1067,6 +1067,310 @@ describe('MasumeGrid', () => {
     expect(colValues(container, 0)).toEqual(['a', 'b', 'zz', '']);
   });
 
+  // ----- filtering --------------------------------------------------------
+
+  const filterButton = (title: string) =>
+    header(title).querySelector('[data-filter-btn]') as HTMLElement;
+  const openFilter = (title: string) => fireEvent.mouseDown(filterButton(title));
+  const panel = () => screen.getByRole('dialog');
+  /** Panel checkboxes: [0] is "(All)", the rest follow the listed values. */
+  const panelBoxes = () =>
+    Array.from(panel().querySelectorAll('input[type="checkbox"]')) as HTMLInputElement[];
+  const choiceLabels = () =>
+    Array.from(panel().querySelectorAll('.masume-grid-filter-list .masume-grid-filter-item-label'))
+      .map((el) => el.textContent);
+
+  const FRUIT = [['apple'], ['carrot'], ['apple'], ['banana']];
+
+  it('lists the distinct values of a column and filters by the checklist', () => {
+    const onFilterChange = vi.fn();
+    const { container } = render(
+      <MasumeGrid
+        data={FRUIT}
+        columns={[{ title: 'Item' }]}
+        filterable
+        onFilterChange={onFilterChange}
+      />,
+    );
+    openFilter('Item');
+    expect(choiceLabels()).toEqual(['apple', 'banana', 'carrot']); // sorted, deduped
+
+    fireEvent.click(panelBoxes()[1]); // uncheck 'apple'
+    expect(colValues(container, 0)).toEqual(['carrot', 'banana']);
+    expect(onFilterChange).toHaveBeenLastCalledWith({
+      0: { type: 'values', values: ['banana', 'carrot'] },
+    });
+
+    fireEvent.click(panelBoxes()[1]); // check it again -> filter dropped
+    expect(colValues(container, 0)).toEqual(['apple', 'carrot', 'apple', 'banana']);
+    expect(onFilterChange).toHaveBeenLastCalledWith({});
+  });
+
+  it('toggles every listed value with (All), respecting the search box', () => {
+    const { container } = render(
+      <MasumeGrid data={FRUIT} columns={[{ title: 'Item' }]} filterable />,
+    );
+    openFilter('Item');
+    fireEvent.click(panelBoxes()[0]); // (All) off: nothing passes
+    expect(colValues(container, 0)).toEqual([]);
+
+    fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'an' } });
+    expect(choiceLabels()).toEqual(['banana']);
+    fireEvent.click(panelBoxes()[0]); // (All) on, but only over the search hits
+    expect(colValues(container, 0)).toEqual(['banana']);
+  });
+
+  it('renumbers rows sequentially and keeps hidden rows in the data', () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <MasumeGrid data={FRUIT} columns={[{ title: 'Item' }]} filterable onChange={onChange} />,
+    );
+    openFilter('Item');
+    fireEvent.click(panelBoxes()[1]); // hide 'apple'
+    expect(rowCountOf(container)).toBe(2);
+    expect(container.querySelector('[data-rownum="1"]')!.textContent).toBe('2');
+
+    // Editing display row 0 ('carrot') writes to data row 1, hidden rows intact.
+    fireEvent.mouseDown(container.querySelector('[data-row="0"][data-col="0"]')!);
+    fireEvent.keyDown(editor(), { key: 'F2' });
+    fireEvent.change(editor(), { target: { value: 'cabbage' } });
+    fireEvent.keyDown(editor(), { key: 'Enter' });
+    expect(onChange).toHaveBeenCalledWith([['apple'], ['cabbage'], ['apple'], ['banana']]);
+  });
+
+  it('maps display rows back to data rows for selection and copy', () => {
+    const onSelectionChange = vi.fn();
+    const setData = vi.fn();
+    const { container } = render(
+      <MasumeGrid
+        data={FRUIT}
+        columns={[{ title: 'Item' }]}
+        filterable
+        onSelectionChange={onSelectionChange}
+      />,
+    );
+    openFilter('Item');
+    fireEvent.click(panelBoxes()[1]); // hide 'apple' -> data rows [1, 3]
+    fireEvent.mouseDown(container.querySelector('[data-row="0"][data-col="0"]')!);
+    expect(onSelectionChange).toHaveBeenLastCalledWith(
+      [{ top: 0, bottom: 0, left: 0, right: 0 }],
+      [1, 3],
+    );
+    fireEvent.keyDown(editor(), { key: 'a', ctrlKey: true });
+    fireEvent.copy(editor(), { clipboardData: { setData } });
+    expect(setData).toHaveBeenCalledWith('text/plain', 'carrot\nbanana');
+  });
+
+  it('combines filtering with sorting', () => {
+    const { container } = render(
+      <MasumeGrid
+        data={[['b', 'x'], ['c', 'y'], ['a', 'x']]}
+        columns={[{ title: 'Name' }, { title: 'Tag' }]}
+        filterable
+        sortable
+      />,
+    );
+    openFilter('Tag');
+    fireEvent.click(panelBoxes()[2]); // hide 'y'
+    expect(colValues(container, 0)).toEqual(['b', 'a']);
+    fireEvent.mouseDown(header('Name'));
+    expect(colValues(container, 0)).toEqual(['a', 'b']);
+  });
+
+  it('keeps a row visible after an edit stops it matching', () => {
+    function Controlled() {
+      const [data, setData] = useState<string[][]>(FRUIT);
+      return (
+        <MasumeGrid data={data} columns={[{ title: 'Item' }]} filterable onChange={setData} />
+      );
+    }
+    const { container } = render(<Controlled />);
+    openFilter('Item');
+    fireEvent.click(panelBoxes()[2]); // hide 'banana'
+    expect(colValues(container, 0)).toEqual(['apple', 'carrot', 'apple']);
+
+    fireEvent.mouseDown(container.querySelector('[data-row="1"][data-col="0"]')!);
+    fireEvent.keyDown(editor(), { key: 'F2' });
+    fireEvent.change(editor(), { target: { value: 'banana' } });
+    fireEvent.keyDown(editor(), { key: 'Enter' });
+    // The row no longer matches but must not vanish under the caret.
+    expect(colValues(container, 0)).toEqual(['apple', 'banana', 'apple']);
+  });
+
+  it('keeps the appendBlankRow row at the bottom while filtered', () => {
+    function Controlled() {
+      const [data, setData] = useState<string[][]>(FRUIT);
+      return (
+        <MasumeGrid
+          data={data}
+          columns={[{ title: 'Item' }]}
+          filterable
+          appendBlankRow
+          onChange={setData}
+        />
+      );
+    }
+    const { container } = render(<Controlled />);
+    openFilter('Item');
+    fireEvent.click(panelBoxes()[1]); // hide 'apple'
+    expect(colValues(container, 0)).toEqual(['carrot', 'banana', '']);
+
+    fireEvent.mouseDown(container.querySelector('[data-row="2"][data-col="0"]')!);
+    fireEvent.change(editor(), { target: { value: 'melon' } });
+    fireEvent.keyDown(editor(), { key: 'Enter' });
+    // The appended row joins the end of the view, followed by a fresh blank row.
+    expect(colValues(container, 0)).toEqual(['carrot', 'banana', 'melon', '']);
+  });
+
+  it('filters on typed text when the column uses text mode', () => {
+    const { container } = render(
+      <MasumeGrid data={FRUIT} columns={[{ title: 'Item', filter: 'text' }]} filterable />,
+    );
+    openFilter('Item');
+    expect(panel().querySelector('.masume-grid-filter-list')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'AN' } });
+    expect(colValues(container, 0)).toEqual(['banana']); // case-insensitive
+  });
+
+  it('matches select labels, formatted text and custom filterLabel', () => {
+    const { container } = render(
+      <MasumeGrid
+        data={[
+          ['C01', '1000', 'true'],
+          ['C02', '2000', ''],
+        ]}
+        columns={[
+          {
+            title: 'Cat',
+            type: 'select',
+            options: [{ value: 'C01', label: 'Fruit' }, { value: 'C02', label: 'Veg' }],
+          },
+          { title: 'Price', type: 'number', format: formatThousands },
+          { title: 'Done', type: 'checkbox', filterLabel: (v) => (v ? 'yes' : 'no') },
+        ]}
+        filterable
+      />,
+    );
+    openFilter('Cat');
+    expect(choiceLabels()).toEqual(['Fruit', 'Veg']);
+    openFilter('Price');
+    expect(choiceLabels()).toEqual(['1,000', '2,000']);
+    openFilter('Done');
+    expect(choiceLabels()).toEqual(['no', 'yes']);
+    fireEvent.click(panelBoxes()[1]); // keep the checked rows out
+    expect(colValues(container, 0)).toEqual(['Fruit▾']);
+  });
+
+  it('filters checkbox columns by checked state out of the box', () => {
+    const { container } = render(
+      <MasumeGrid
+        data={[
+          ['a', 'true'],
+          ['b', ''],
+          ['c', 'TRUE'],
+        ]}
+        columns={[{ title: 'Name' }, { title: 'Done', type: 'checkbox' }]}
+        filterable
+      />,
+    );
+    openFilter('Done');
+    expect(choiceLabels()).toEqual(['(Unchecked)', '(Checked)']);
+    fireEvent.click(panelBoxes()[1]); // uncheck "(Unchecked)"
+    // Every spelling of "checked" belongs to the same entry.
+    expect(colValues(container, 0)).toEqual(['a', 'c']);
+  });
+
+  it('uses ColumnDef.filterMatch when provided', () => {
+    const { container } = render(
+      <MasumeGrid
+        data={[['aa'], ['b'], ['cccc']]}
+        columns={[
+          {
+            title: 'Name',
+            filter: 'text',
+            filterMatch: (value, filter) =>
+              filter.type === 'text' && value.length >= Number(filter.query),
+          },
+        ]}
+        filterable
+      />,
+    );
+    openFilter('Name');
+    fireEvent.change(screen.getByLabelText('Search'), { target: { value: '2' } });
+    expect(colValues(container, 0)).toEqual(['aa', 'cccc']);
+  });
+
+  it('labels empty values and applies defaultFilters on mount', () => {
+    const { container } = render(
+      <MasumeGrid
+        data={[['a'], [''], ['b']]}
+        columns={[{ title: 'Name' }]}
+        filterable
+        defaultFilters={{ 0: { type: 'values', values: ['a', ''] } }}
+      />,
+    );
+    expect(colValues(container, 0)).toEqual(['a', '']);
+    openFilter('Name');
+    expect(choiceLabels()).toEqual(['a', 'b', '(Blanks)']); // blanks sort last
+    expect(panelBoxes().map((b) => b.checked)).toEqual([false, true, false, true]);
+  });
+
+  it('shows no filter button on template columns or when filter is false', () => {
+    render(
+      <MasumeGrid
+        data={[['a', 'b', 'c']]}
+        columns={[
+          { title: 'Name' },
+          { title: 'Locked', filter: false },
+          { title: 'Act', type: 'template', template: () => <span>x</span> },
+        ]}
+        filterable
+      />,
+    );
+    expect(filterButton('Name')).toBeTruthy();
+    expect(filterButton('Locked')).toBeNull();
+    expect(filterButton('Act')).toBeNull();
+  });
+
+  it('clears the column filter from the panel and closes on Escape', () => {
+    const { container } = render(
+      <MasumeGrid
+        data={FRUIT}
+        columns={[{ title: 'Item' }]}
+        filterable
+        filterTexts={{ clear: 'クリア' }}
+      />,
+    );
+    openFilter('Item');
+    fireEvent.click(panelBoxes()[1]);
+    expect(colValues(container, 0)).toEqual(['carrot', 'banana']);
+    expect(filterButton('Item').textContent).toBe('▼'); // filtering
+
+    fireEvent.click(screen.getByText('クリア'));
+    expect(colValues(container, 0)).toEqual(['apple', 'carrot', 'apple', 'banana']);
+    expect(filterButton('Item').textContent).toBe('▽');
+
+    fireEvent.keyDown(panel(), { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('does not sort or select the column when the filter button is clicked', () => {
+    const onSelectionChange = vi.fn();
+    const { container } = render(
+      <MasumeGrid
+        data={[['b'], ['a']]}
+        columns={[{ title: 'Name' }]}
+        filterable
+        sortable
+        onSelectionChange={onSelectionChange}
+      />,
+    );
+    onSelectionChange.mockClear();
+    openFilter('Name');
+    expect(colValues(container, 0)).toEqual(['b', 'a']); // unsorted
+    expect(onSelectionChange).not.toHaveBeenCalled();
+  });
+
   it('does not render column templates in the blank row', () => {
     const template = vi.fn(({ row }: { row: number }) => <span>tpl{row}</span>);
     const { container } = render(

@@ -95,6 +95,27 @@ export interface ColumnDef {
    * result is negated for descending order.
    */
   compare?: (a: CellValue, b: CellValue) => number;
+  /**
+   * Header filter for this column. Overrides the grid-level `filterable`:
+   * `false` turns it off, `true` uses the default panel, and a `FilterMode`
+   * picks which panel. Defaults to `filterable` for every type except
+   * 'template', whose rendered content has no meaningful stored value.
+   */
+  filter?: boolean | FilterMode;
+  /**
+   * Display text of a stored value in the filter panel. Values that share a
+   * label are listed — and checked — as a single entry, and 'text' filters
+   * match against it. Defaults to the select option label, the checked /
+   * unchecked wording for 'checkbox' columns, the `format` output, or the
+   * raw value.
+   */
+  filterLabel?: (value: CellValue) => string;
+  /**
+   * Custom matcher for this column, called with the stored value, the
+   * active condition and the data row index. Replaces the built-in
+   * matching entirely; return true to keep the row.
+   */
+  filterMatch?: (value: CellValue, filter: ColumnFilter, row: number) => boolean;
 }
 
 /** Per-cell overrides returned by `MasumeGridProps.getCellProps`. */
@@ -124,6 +145,45 @@ export interface SortState {
   direction: SortDirection;
 }
 
+/** Which panel a column's header filter shows. */
+export type FilterMode =
+  /** Checklist of the column's distinct values, with a search box (default). */
+  | 'values'
+  /** A single text box; rows whose displayed text contains the query pass. */
+  | 'text';
+
+/** A column's active filter condition. */
+export type ColumnFilter =
+  /** Keep rows whose stored value is one of `values` (`[]` keeps none). */
+  | { type: 'values'; values: string[] }
+  /** Keep rows whose displayed text contains `query` (`''` keeps all). */
+  | { type: 'text'; query: string };
+
+/** Active filters keyed by column index. Columns without an entry pass everything. */
+export type FilterState = Record<number, ColumnFilter>;
+
+/** UI strings of the filter panel. Override to translate them. */
+export interface FilterTexts {
+  /** Row that checks/unchecks everything listed. Default: '(All)'. */
+  all: string;
+  /** Entry for empty values. Default: '(Blanks)'. */
+  blanks: string;
+  /** Entry for checked cells in a 'checkbox' column. Default: '(Checked)'. */
+  checked: string;
+  /** Entry for unchecked cells in a 'checkbox' column. Default: '(Unchecked)'. */
+  unchecked: string;
+  /** Placeholder of the search box. Default: 'Search'. */
+  search: string;
+  /** Button that removes the column's filter. Default: 'Clear'. */
+  clear: string;
+  /** Button that closes the panel. Default: 'Close'. */
+  close: string;
+  /** Shown when the value list was cut off. Default: 'Too many values — search to narrow'. */
+  more: string;
+  /** Accessible name of the header filter button. Default: 'Filter'. */
+  button: string;
+}
+
 /** Inclusive, normalized rectangular range (top <= bottom, left <= right). */
 export interface NormalizedRange {
   top: number;
@@ -146,10 +206,11 @@ export interface MasumeGridProps {
   onCellChange?: (row: number, col: number, value: CellValue) => void;
   /**
    * Called whenever the selection changes, with normalized ranges.
-   * Range rows are **display** rows: while the grid is sorted they differ
-   * from the `data` indices, so `viewToData` is passed alongside to map
-   * them back (`viewToData[row]`). It is `null` when the grid is unsorted,
-   * where display rows and data rows are the same.
+   * Range rows are **display** rows: while the grid is sorted or filtered
+   * they differ from the `data` indices, so `viewToData` is passed
+   * alongside to map them back (`viewToData[row]`). It is `null` when the
+   * grid is neither sorted nor filtered, where display rows and data rows
+   * are the same.
    */
   onSelectionChange?: (
     ranges: NormalizedRange[],
@@ -200,6 +261,24 @@ export interface MasumeGridProps {
   sortable?: boolean;
   /** Initial sort while `sortable` is on. Default: unsorted. */
   defaultSort?: SortState | null;
+  /**
+   * Filter rows from the column headers (Excel-style ▽ button opening a
+   * checklist of the column's values). `data` is never modified — only the
+   * displayed rows are narrowed, so `onChange` / `onCellChange` /
+   * `getCellProps` / `template` keep using `data` indices and hidden rows
+   * are preserved. Rows are re-evaluated when a filter changes, not while
+   * cells are edited, so a row never disappears mid-entry. Override per
+   * column with `ColumnDef.filter`. The filter state lives inside the
+   * component; observe it with `onFilterChange`. Requires `showHeader`
+   * (filtering is a header gesture). Default: false.
+   */
+  filterable?: boolean;
+  /** Initial filters while `filterable` is on. Default: none. */
+  defaultFilters?: FilterState | null;
+  /** Called on every filter change, with the full filter state. */
+  onFilterChange?: (filters: FilterState) => void;
+  /** UI strings of the filter panel. Default: English (see `FilterTexts`). */
+  filterTexts?: Partial<FilterTexts>;
   /** Row height in pixels. Default: 28. */
   rowHeight?: number;
   /** Header row height in pixels. Default: 28. */

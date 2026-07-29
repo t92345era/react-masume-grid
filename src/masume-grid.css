@@ -145,6 +145,147 @@
   font-size: 10px;
 }
 
+/* ----- filtering ----- */
+
+.masume-grid-hcell--filterable {
+  padding-right: 18px;
+}
+
+/* Both indicators: the filter button keeps the edge, the sort arrow moves in. */
+.masume-grid-hcell--sortable.masume-grid-hcell--filterable {
+  padding-right: 32px;
+}
+
+.masume-grid-hcell--filterable .masume-grid-sort-arrow {
+  right: 20px;
+}
+
+.masume-grid-filter-btn {
+  position: absolute;
+  right: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: none;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--masume-grid-readonly-fg);
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.masume-grid-filter-btn:hover {
+  background: var(--masume-grid-header-sel-bg);
+  color: var(--masume-grid-accent);
+}
+
+/* Filled glyph + accent: this column is narrowing the view. */
+.masume-grid-filter-btn--on,
+.masume-grid-filter-btn--open {
+  color: var(--masume-grid-accent);
+}
+
+.masume-grid-filter-btn--open {
+  background: var(--masume-grid-header-sel-bg);
+}
+
+.masume-grid-filter-panel {
+  position: absolute;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  gap: 4px;
+  border: 1px solid var(--masume-grid-border);
+  background: var(--masume-grid-cell-bg);
+  color: var(--masume-grid-cell-fg);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
+  font-weight: normal;
+  cursor: default;
+  /* The panel is a form: text selection and native controls behave normally. */
+  user-select: auto;
+  -webkit-user-select: auto;
+}
+
+.masume-grid-filter-search {
+  padding: 3px 6px;
+  border: 1px solid var(--masume-grid-border);
+  background: var(--masume-grid-cell-bg);
+  color: inherit;
+  font: inherit;
+}
+
+.masume-grid-filter-search:focus {
+  outline: 1px solid var(--masume-grid-accent);
+  outline-offset: -1px;
+}
+
+.masume-grid-filter-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.masume-grid-filter-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+
+.masume-grid-filter-item:hover {
+  background: var(--masume-grid-sel-bg);
+}
+
+/* Separated from the value list it commands. */
+.masume-grid-filter-item--all {
+  border-bottom: 1px solid var(--masume-grid-border);
+  padding-bottom: 4px;
+}
+
+.masume-grid-filter-item input {
+  flex: none;
+  margin: 0;
+  accent-color: var(--masume-grid-accent);
+}
+
+.masume-grid-filter-item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.masume-grid-filter-more {
+  padding: 4px;
+  color: var(--masume-grid-readonly-fg);
+  font-size: 11px;
+}
+
+.masume-grid-filter-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.masume-grid-filter-action {
+  padding: 2px 10px;
+  border: 1px solid var(--masume-grid-border);
+  border-radius: 2px;
+  background: var(--masume-grid-header-bg);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.masume-grid-filter-action:hover {
+  border-color: var(--masume-grid-accent);
+  color: var(--masume-grid-accent);
+}
+
 /* ----- body ----- */
 
 .masume-grid-body {

@@ -7,7 +7,17 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { CellPos, CellValue, MasumeGridProps, NormalizedRange, SortState } from './types';
+import type {
+  CellPos,
+  CellValue,
+  ColumnFilter,
+  FilterMode,
+  FilterState,
+  FilterTexts,
+  MasumeGridProps,
+  NormalizedRange,
+  SortState,
+} from './types';
 import type { SelRange } from './utils';
 import {
   clamp,
@@ -20,11 +30,47 @@ import {
   normalizeNumberInput,
   normalizeRange,
   parseClipboardText,
+  toHalfWidth,
 } from './utils';
 import './masume-grid.css';
 
 const OVERSCAN = 4;
 const MIN_COL_WIDTH = 24;
+const FILTER_PANEL_WIDTH = 220;
+/** Cap on the checklist: past this the panel asks the user to search instead. */
+const MAX_FILTER_CHOICES = 1000;
+
+const DEFAULT_FILTER_TEXTS: FilterTexts = {
+  all: '(All)',
+  blanks: '(Blanks)',
+  checked: '(Checked)',
+  unchecked: '(Unchecked)',
+  search: 'Search',
+  clear: 'Clear',
+  close: 'Close',
+  more: 'Too many values — search to narrow',
+  button: 'Filter',
+};
+
+/** Ordering key of a cell, derived from its column type. null = empty cell. */
+type SortKey = string | number | null;
+
+/**
+ * Order two sort keys. Empty cells come last; callers that apply a sort
+ * direction handle that case themselves so that blanks stay last in both
+ * directions.
+ */
+function compareSortKeys(a: SortKey, b: SortKey): number {
+  if (a === null || b === null) return a === b ? 0 : a === null ? 1 : -1;
+  if (typeof a === 'number' && typeof b === 'number') return a - b;
+  // Numeric collation keeps "item2" before "item10".
+  return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
+}
+
+/** Width- and case-insensitive form used by filter matching and the search box. */
+function normalizeFilterText(text: string): string {
+  return toHalfWidth(text).toLowerCase();
+}
 
 interface EditState {
   row: number;
@@ -56,6 +102,10 @@ export function MasumeGrid({
   resizableColumns = true,
   sortable = false,
   defaultSort = null,
+  filterable = false,
+  defaultFilters = null,
+  onFilterChange,
+  filterTexts,
   rowHeight = 28,
   headerHeight = 28,
   defaultColumnWidth = 120,
@@ -68,95 +118,10 @@ export function MasumeGrid({
   // the only thing it is good for, so a read-only grid never shows it.
   const dataRowCount = data.length;
   const hasBlankRow = appendBlankRow && !readOnly;
-  const rowCount = dataRowCount + (hasBlankRow ? 1 : 0);
   const colCount = useMemo(
     () => (columns ? columns.length : data.reduce((m, r) => Math.max(m, r.length), 0)),
     [columns, data],
   );
-
-  // Widths set by drag-resizing take precedence over column definitions.
-  const [widthOverrides, setWidthOverrides] = useState<Record<number, number>>({});
-  const [resizingCol, setResizingCol] = useState<number | null>(null);
-
-  const widths = useMemo(
-    () =>
-      Array.from(
-        { length: colCount },
-        (_, i) => widthOverrides[i] ?? columns?.[i]?.width ?? defaultColumnWidth,
-      ),
-    [columns, colCount, defaultColumnWidth, widthOverrides],
-  );
-  const offsets = useMemo(() => columnOffsets(widths), [widths]);
-  const rowNumW = showRowNumbers ? rowNumberWidth : 0;
-  const headerH = showHeader ? headerHeight : 0;
-  const totalW = rowNumW + (offsets[colCount] ?? 0);
-  const totalH = rowCount * rowHeight;
-
-  const [selection, setSelection] = useState<SelRange[]>([
-    { anchor: { row: 0, col: 0 }, focus: { row: 0, col: 0 } },
-  ]);
-  const [editing, setEditing] = useState<EditState | null>(null);
-  const [editValue, setEditValue] = useState('');
-  // Source range of the last copy/cut, outlined with "marching ants"
-  // (Excel/Sheets-style) until Escape, paste, or the next edit.
-  const [copyRect, setCopyRect] = useState<NormalizedRange | null>(null);
-  const [scrollTop, setScrollTop] = useState(0);
-  const [viewportH, setViewportH] = useState(0);
-
-  // Select-column dropdown state: optionFilter is the text typed since the
-  // edit started (null = nothing typed); it only narrows the list when the
-  // column is filterable.
-  const [optionFilter, setOptionFilter] = useState<string | null>(null);
-  const [dropdownIndex, setDropdownIndex] = useState(0);
-  // Whether the user moved the dropdown highlight with arrow keys.
-  const dropdownNavRef = useRef(false);
-
-  const containerRef = useRef<HTMLDivElement>(null);
-  const taRef = useRef<HTMLTextAreaElement>(null);
-  const dateRef = useRef<HTMLInputElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const composingRef = useRef(false);
-  const compositionEndAtRef = useRef(-1);
-  const editingRef = useRef(editing);
-  editingRef.current = editing;
-  const editValueRef = useRef(editValue);
-  editValueRef.current = editValue;
-  // Display→data row map of the current render, for effects that run after it.
-  const viewToDataRef = useRef<number[] | null>(null);
-  // Set when a write materialized the blank row: `data` grows only after the
-  // parent re-renders, so the caret is allowed one row past `rowCount` in the
-  // meantime (that row is the blank row that is about to appear).
-  const grewRowsRef = useRef(false);
-  useEffect(() => {
-    grewRowsRef.current = false;
-  }, [data]);
-
-  const lastRange = selection[selection.length - 1];
-  const active: CellPos = {
-    row: clamp(lastRange.anchor.row, 0, Math.max(0, rowCount - 1)),
-    col: clamp(lastRange.anchor.col, 0, Math.max(0, colCount - 1)),
-  };
-
-  const normRanges = useMemo(
-    () => selection.map((r) => normalizeRange(r, rowCount, colCount)),
-    [selection, rowCount, colCount],
-  );
-
-  useEffect(() => {
-    // Ranges are display rows; `viewToData` maps them back to data rows.
-    onSelectionChange?.(normRanges, viewToDataRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [normRanges]);
-
-  useLayoutEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    setViewportH(el.clientHeight);
-    if (typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(() => setViewportH(el.clientHeight));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   // ----- cell types -----------------------------------------------------
 
@@ -194,12 +159,14 @@ export function MasumeGrid({
     return map;
   }, [selectOptions]);
 
-  // ----- sorting ----------------------------------------------------------
+  // ----- sorting & filtering ----------------------------------------------
 
-  // Sorting reorders the *view* only; `data` is never touched. Everything
-  // the host sees (onChange, onCellChange, getCellProps, template) keeps
-  // using data indices, so every read/write below goes through `toDataRow`.
+  // Sorting and filtering shape the *view* only; `data` is never reordered
+  // or trimmed. Everything the host sees (onChange, onCellChange,
+  // getCellProps, template) keeps using data indices, so every read and
+  // write below goes through `toDataRow`.
   const [sort, setSort] = useState<SortState | null>(defaultSort);
+  const [filters, setFilters] = useState<FilterState>(() => defaultFilters ?? {});
 
   const canSortCol = useCallback(
     (col: number) => {
@@ -213,6 +180,24 @@ export function MasumeGrid({
     [columns, sortable],
   );
 
+  const canFilterCol = useCallback(
+    (col: number) => {
+      const def = columns?.[col];
+      if (def?.filter !== undefined) return def.filter !== false;
+      if ((def?.type ?? 'text') === 'template') return false; // same reasoning as sorting
+      return filterable;
+    },
+    [columns, filterable],
+  );
+
+  const filterModeOf = useCallback(
+    (col: number): FilterMode => {
+      const mode = columns?.[col]?.filter;
+      return typeof mode === 'string' ? mode : 'values';
+    },
+    [columns],
+  );
+
   const activeSort = sort && sort.col < colCount && canSortCol(sort.col) ? sort : null;
 
   /**
@@ -220,7 +205,7 @@ export function MasumeGrid({
    * row (decorate-sort-undecorate) rather than inside the comparator.
    */
   const sortKeyOf = useCallback(
-    (col: number, value: CellValue): string | number | null => {
+    (col: number, value: CellValue): SortKey => {
       // An unchecked checkbox is stored as '' but means false, not "blank".
       if (colType(col) === 'checkbox') return isCheckboxChecked(value) ? 1 : 0;
       if (value === '') return null; // empty: always last, both directions
@@ -245,60 +230,141 @@ export function MasumeGrid({
     [colType, selectOptions],
   );
 
+  const texts = useMemo(() => ({ ...DEFAULT_FILTER_TEXTS, ...filterTexts }), [filterTexts]);
+
+  /** Text a value is shown (and matched) as in the filter panel. */
+  const filterLabelOf = useCallback(
+    (col: number, value: CellValue): string => {
+      const def = columns?.[col];
+      if (def?.filterLabel) return def.filterLabel(value);
+      if (colType(col) === 'select') return optionLabelByValue.get(col)?.get(value) ?? value;
+      // A checkbox column stores 'true' / '' — meaningless as a list, so it
+      // filters by state instead. Every spelling of "checked" collapses into
+      // the same entry.
+      if (colType(col) === 'checkbox') {
+        return isCheckboxChecked(value) ? texts.checked : texts.unchecked;
+      }
+      // Match the cell rendering, which never formats empty cells.
+      if (def?.format && value !== '') return def.format(value);
+      return value;
+    },
+    [columns, colType, optionLabelByValue, texts],
+  );
+
   /**
-   * Display order as data-row indices, or null while unsorted (display row
-   * === data row). Recomputed only when the user re-sorts or rows are
-   * removed: editing a cell must not make its row jump away mid-entry
-   * (Excel/Sheets behave the same), and rows appended by `appendBlankRow`
-   * simply join the end.
+   * Display order as data-row indices, or null while the view is neither
+   * sorted nor filtered (display row === data row). Recomputed only when
+   * the user re-sorts / re-filters or rows are removed: editing a cell must
+   * not make its row jump away — or disappear — mid-entry (Excel/Sheets
+   * behave the same), and rows appended by `appendBlankRow` join the end.
    */
-  const orderRef = useRef<{ sort: SortState; order: number[] } | null>(null);
+  const orderRef = useRef<{
+    sort: SortState | null;
+    filters: FilterState;
+    dataLen: number;
+    order: number[];
+  } | null>(null);
   const viewToData = useMemo(() => {
-    if (!activeSort) {
+    // One predicate per filtered column, prepared once per rebuild.
+    const tests: Array<(row: number) => boolean> = [];
+    for (const key of Object.keys(filters)) {
+      const col = Number(key);
+      const filter = filters[col];
+      if (!filter || !Number.isInteger(col) || col < 0 || col >= colCount) continue;
+      if (!canFilterCol(col)) continue;
+      const custom = columns?.[col]?.filterMatch;
+      if (custom) {
+        tests.push((r) => custom(data[r]?.[col] ?? '', filter, r));
+      } else if (filter.type === 'text') {
+        const q = normalizeFilterText(filter.query.trim());
+        if (q === '') continue; // an empty query narrows nothing
+        tests.push((r) =>
+          normalizeFilterText(filterLabelOf(col, data[r]?.[col] ?? '')).includes(q),
+        );
+      } else {
+        const keep = new Set(filter.values);
+        tests.push((r) => keep.has(data[r]?.[col] ?? ''));
+      }
+    }
+
+    if (!activeSort && tests.length === 0) {
       orderRef.current = null;
       return null;
     }
+
     const prev = orderRef.current;
-    if (prev && prev.sort === activeSort && prev.order.length <= dataRowCount) {
-      if (prev.order.length === dataRowCount) return prev.order;
+    if (
+      prev &&
+      prev.sort === activeSort &&
+      prev.filters === filters &&
+      prev.dataLen <= dataRowCount
+    ) {
+      if (prev.dataLen === dataRowCount) return prev.order;
+      // Rows added since the last rebuild join the end of the view even
+      // when they do not match the filter: a row just typed into the blank
+      // row must not vanish under the caret.
       const grown = prev.order.slice();
-      for (let i = prev.order.length; i < dataRowCount; i++) grown.push(i);
-      orderRef.current = { sort: activeSort, order: grown };
+      for (let i = prev.dataLen; i < dataRowCount; i++) grown.push(i);
+      orderRef.current = { sort: activeSort, filters, dataLen: dataRowCount, order: grown };
       return grown;
     }
-    const { col, direction } = activeSort;
-    const compare = columns?.[col]?.compare;
-    const dir = direction === 'asc' ? 1 : -1;
-    const order = Array.from({ length: dataRowCount }, (_, i) => i);
-    if (compare) {
-      order.sort((ia, ib) => dir * compare(data[ia]?.[col] ?? '', data[ib]?.[col] ?? ''));
+
+    let order: number[];
+    if (tests.length === 0) {
+      order = Array.from({ length: dataRowCount }, (_, i) => i);
     } else {
-      const keys = order.map((i) => sortKeyOf(col, data[i]?.[col] ?? ''));
-      order.sort((ia, ib) => {
-        const a = keys[ia];
-        const b = keys[ib];
-        if (a === null || b === null) return a === b ? 0 : a === null ? 1 : -1;
-        if (typeof a === 'number' && typeof b === 'number') return dir * (a - b);
-        // Numeric collation keeps "item2" before "item10".
-        return (
-          dir * String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' })
-        );
-      });
+      order = [];
+      for (let i = 0; i < dataRowCount; i++) {
+        if (tests.every((test) => test(i))) order.push(i);
+      }
     }
-    orderRef.current = { sort: activeSort, order };
+
+    if (activeSort) {
+      const { col, direction } = activeSort;
+      const compare = columns?.[col]?.compare;
+      const dir = direction === 'asc' ? 1 : -1;
+      if (compare) {
+        order.sort((ia, ib) => dir * compare(data[ia]?.[col] ?? '', data[ib]?.[col] ?? ''));
+      } else {
+        // Keyed by data row: `order` skips rows once the view is filtered.
+        const keys = new Map<number, SortKey>();
+        for (const i of order) keys.set(i, sortKeyOf(col, data[i]?.[col] ?? ''));
+        order.sort((ia, ib) => {
+          const a = keys.get(ia) ?? null;
+          const b = keys.get(ib) ?? null;
+          // Empty cells stay last whichever way the column is sorted.
+          if (a === null || b === null) return a === b ? 0 : a === null ? 1 : -1;
+          return dir * compareSortKeys(a, b);
+        });
+      }
+    }
+    orderRef.current = { sort: activeSort, filters, dataLen: dataRowCount, order };
     return order;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSort, data, dataRowCount, columns, sortKeyOf]);
+  }, [
+    activeSort,
+    filters,
+    data,
+    dataRowCount,
+    columns,
+    colCount,
+    canFilterCol,
+    filterLabelOf,
+    sortKeyOf,
+  ]);
 
-  viewToDataRef.current = viewToData;
+  /** Rows the view shows, excluding the trailing blank row. */
+  const viewRowCount = viewToData ? viewToData.length : dataRowCount;
+  const rowCount = viewRowCount + (hasBlankRow ? 1 : 0);
 
   /**
-   * Display row → `data` row. Rows past the data (the `appendBlankRow` row)
-   * map to themselves, so a commit there still appends at `data.length`.
+   * Display row → `data` row. Rows past the view (the `appendBlankRow` row)
+   * map onto the end of `data`, so a commit there still appends.
    */
   const toDataRow = useCallback(
-    (viewRow: number) => viewToData?.[viewRow] ?? viewRow,
-    [viewToData],
+    (viewRow: number) =>
+      viewToData ? (viewToData[viewRow] ?? dataRowCount + viewRow - viewToData.length) : viewRow,
+    [viewToData, dataRowCount],
   );
 
   const toggleSort = (col: number) => {
@@ -311,6 +377,113 @@ export function MasumeGrid({
     setSort(next);
     onSortChange?.(next);
   };
+
+  const setColumnFilter = (col: number, filter: ColumnFilter | null) => {
+    const next = { ...filters };
+    if (filter === null) delete next[col];
+    else next[col] = filter;
+    setFilters(next);
+    onFilterChange?.(next);
+  };
+
+  /** Whether a column is currently narrowing the view. */
+  const isColFiltered = (col: number) => {
+    const filter = filters[col];
+    return !!filter && (filter.type === 'values' || filter.query.trim() !== '');
+  };
+
+  // Widths set by drag-resizing take precedence over column definitions.
+  const [widthOverrides, setWidthOverrides] = useState<Record<number, number>>({});
+  const [resizingCol, setResizingCol] = useState<number | null>(null);
+
+  const widths = useMemo(
+    () =>
+      Array.from(
+        { length: colCount },
+        (_, i) => widthOverrides[i] ?? columns?.[i]?.width ?? defaultColumnWidth,
+      ),
+    [columns, colCount, defaultColumnWidth, widthOverrides],
+  );
+  const offsets = useMemo(() => columnOffsets(widths), [widths]);
+  const rowNumW = showRowNumbers ? rowNumberWidth : 0;
+  const headerH = showHeader ? headerHeight : 0;
+  const totalW = rowNumW + (offsets[colCount] ?? 0);
+  const totalH = rowCount * rowHeight;
+
+  const [selection, setSelection] = useState<SelRange[]>([
+    { anchor: { row: 0, col: 0 }, focus: { row: 0, col: 0 } },
+  ]);
+  const [editing, setEditing] = useState<EditState | null>(null);
+  const [editValue, setEditValue] = useState('');
+  // Source range of the last copy/cut, outlined with "marching ants"
+  // (Excel/Sheets-style) until Escape, paste, or the next edit.
+  const [copyRect, setCopyRect] = useState<NormalizedRange | null>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [scrollLeft, setScrollLeft] = useState(0);
+  const [viewportH, setViewportH] = useState(0);
+  const [viewportW, setViewportW] = useState(0);
+
+  // Select-column dropdown state: optionFilter is the text typed since the
+  // edit started (null = nothing typed); it only narrows the list when the
+  // column is filterable.
+  const [optionFilter, setOptionFilter] = useState<string | null>(null);
+  const [dropdownIndex, setDropdownIndex] = useState(0);
+  // Whether the user moved the dropdown highlight with arrow keys.
+  const dropdownNavRef = useRef(false);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  const dateRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const filterPanelRef = useRef<HTMLDivElement>(null);
+  const filterSearchRef = useRef<HTMLInputElement>(null);
+  const composingRef = useRef(false);
+  const compositionEndAtRef = useRef(-1);
+  const editingRef = useRef(editing);
+  editingRef.current = editing;
+  const editValueRef = useRef(editValue);
+  editValueRef.current = editValue;
+  // Display→data row map of the current render, for effects that run after it.
+  const viewToDataRef = useRef<number[] | null>(null);
+  viewToDataRef.current = viewToData;
+  // Set when a write materialized the blank row: `data` grows only after the
+  // parent re-renders, so the caret is allowed one row past `rowCount` in the
+  // meantime (that row is the blank row that is about to appear).
+  const grewRowsRef = useRef(false);
+  useEffect(() => {
+    grewRowsRef.current = false;
+  }, [data]);
+
+  const lastRange = selection[selection.length - 1];
+  const active: CellPos = {
+    row: clamp(lastRange.anchor.row, 0, Math.max(0, rowCount - 1)),
+    col: clamp(lastRange.anchor.col, 0, Math.max(0, colCount - 1)),
+  };
+
+  const normRanges = useMemo(
+    () => selection.map((r) => normalizeRange(r, rowCount, colCount)),
+    [selection, rowCount, colCount],
+  );
+
+  useEffect(() => {
+    // Ranges are display rows; `viewToData` maps them back to data rows.
+    onSelectionChange?.(normRanges, viewToDataRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [normRanges]);
+
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    setViewportH(el.clientHeight);
+    setViewportW(el.clientWidth);
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => {
+      setViewportH(el.clientHeight);
+      setViewportW(el.clientWidth);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // ----- editability ------------------------------------------------------
 
@@ -552,6 +725,158 @@ export function MasumeGrid({
     if (editing && editingType === 'date') dateRef.current?.focus({ preventScroll: true });
   }, [editing, editingType]);
 
+  // ----- filter panel -----------------------------------------------------
+
+  const [filterPanelCol, setFilterPanelCol] = useState<number | null>(null);
+  // Search box content: the checklist narrower in 'values' mode, the filter
+  // itself in 'text' mode.
+  const [filterQuery, setFilterQuery] = useState('');
+
+  /** Open panel, ignoring a column that stopped being filterable. */
+  const panelCol =
+    filterPanelCol !== null && filterPanelCol < colCount && canFilterCol(filterPanelCol)
+      ? filterPanelCol
+      : null;
+
+  /**
+   * Distinct values of the open column, grouped by the text they display
+   * as. Only computed while the panel is open — it scans every data row.
+   */
+  const filterChoices = useMemo(() => {
+    if (panelCol === null || filterModeOf(panelCol) !== 'values') return null;
+    const groups = new Map<string, string[]>();
+    let truncated = false;
+    for (let r = 0; r < dataRowCount; r++) {
+      const raw = data[r]?.[panelCol] ?? '';
+      const label = filterLabelOf(panelCol, raw);
+      const values = groups.get(label);
+      if (values) {
+        if (!values.includes(raw)) values.push(raw);
+      } else if (groups.size >= MAX_FILTER_CHOICES) {
+        truncated = true;
+      } else {
+        groups.set(label, [raw]);
+      }
+    }
+    const list = Array.from(groups, ([label, values]) => ({ label, values }));
+    list.sort((a, b) =>
+      compareSortKeys(sortKeyOf(panelCol, a.values[0]), sortKeyOf(panelCol, b.values[0])),
+    );
+    return { list, truncated };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panelCol, data, dataRowCount, filterModeOf, filterLabelOf, sortKeyOf]);
+
+  /** The subset the search box leaves visible. */
+  const visibleChoices = useMemo(() => {
+    if (!filterChoices) return null;
+    const q = normalizeFilterText(filterQuery.trim());
+    if (q === '') return filterChoices.list;
+    return filterChoices.list.filter((g) => normalizeFilterText(g.label).includes(q));
+  }, [filterChoices, filterQuery]);
+
+  /** Values checked in the open panel; null means "everything is checked". */
+  const checkedValues = useMemo(() => {
+    const filter = panelCol === null ? undefined : filters[panelCol];
+    return filter?.type === 'values' ? new Set(filter.values) : null;
+  }, [panelCol, filters]);
+
+  // A group's values are always toggled together, so any of them is enough.
+  const isChoiceChecked = (group: { values: string[] }) =>
+    !checkedValues || group.values.some((v) => checkedValues.has(v));
+
+  /** Store the checklist, dropping the filter once everything is checked. */
+  const commitPanelSelection = (values: Set<string>) => {
+    if (panelCol === null || !filterChoices) return;
+    const all = filterChoices.list.every((g) => g.values.every((v) => values.has(v)));
+    setColumnFilter(
+      panelCol,
+      // With a truncated list "all listed" is not "all values", so the
+      // filter has to stay explicit.
+      all && !filterChoices.truncated ? null : { type: 'values', values: [...values] },
+    );
+  };
+
+  const allValues = () => (filterChoices?.list ?? []).flatMap((g) => g.values);
+
+  const toggleChoice = (group: { label: string; values: string[] }) => {
+    const next = new Set(checkedValues ?? allValues());
+    const checked = isChoiceChecked(group);
+    for (const v of group.values) {
+      if (checked) next.delete(v);
+      else next.add(v);
+    }
+    commitPanelSelection(next);
+  };
+
+  /** "(All)": checks or unchecks every entry the search box leaves visible. */
+  const toggleAllChoices = () => {
+    if (!visibleChoices) return;
+    const next = new Set(checkedValues ?? allValues());
+    const allShown = visibleChoices.every(isChoiceChecked);
+    for (const g of visibleChoices) {
+      for (const v of g.values) {
+        if (allShown) next.delete(v);
+        else next.add(v);
+      }
+    }
+    commitPanelSelection(next);
+  };
+
+  const handleFilterQueryChange = (value: string) => {
+    setFilterQuery(value);
+    // In 'text' mode the box *is* the filter and applies as you type.
+    if (panelCol !== null && filterModeOf(panelCol) === 'text') {
+      setColumnFilter(panelCol, value.trim() === '' ? null : { type: 'text', query: value });
+    }
+  };
+
+  const openFilterPanel = (col: number) => {
+    commitEdit();
+    const filter = filters[col];
+    setFilterQuery(filter?.type === 'text' ? filter.query : '');
+    setFilterPanelCol((cur) => (cur === col ? null : col));
+  };
+
+  const closeFilterPanel = () => {
+    setFilterPanelCol(null);
+    taRef.current?.focus({ preventScroll: true });
+  };
+
+  const clearPanelFilter = () => {
+    if (panelCol === null) return;
+    setColumnFilter(panelCol, null);
+    setFilterQuery('');
+  };
+
+  const handleFilterPanelKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape' || e.key === 'Enter') {
+      e.preventDefault();
+      closeFilterPanel();
+    }
+  };
+
+  // Opening the panel moves focus into its search box (closing hands it back
+  // to the grid's editor).
+  useEffect(() => {
+    if (panelCol === null) return;
+    filterSearchRef.current?.focus({ preventScroll: true });
+  }, [panelCol]);
+
+  // A mousedown anywhere else closes the panel. The header button and the
+  // panel itself are excluded so they can keep toggling/operating it.
+  useEffect(() => {
+    if (panelCol === null) return;
+    const onDown = (ev: MouseEvent) => {
+      const target = ev.target as HTMLElement | null;
+      if (!target) return;
+      if (filterPanelRef.current?.contains(target)) return;
+      if (target.closest?.('[data-filter-btn]')) return;
+      setFilterPanelCol(null);
+    };
+    window.addEventListener('mousedown', onDown);
+    return () => window.removeEventListener('mousedown', onDown);
+  }, [panelCol]);
+
   // ----- selection ------------------------------------------------------
 
   const setLastFocus = (sel: SelRange[], pos: CellPos): SelRange[] => {
@@ -578,7 +903,7 @@ export function MasumeGrid({
     // The trailing blank row is an input affordance, not data — leaving it
     // out keeps a select-all copy free of a stray empty line. (With no data
     // at all there is nothing else to select.)
-    const lastRow = Math.max(0, (hasBlankRow ? dataRowCount : rowCount) - 1);
+    const lastRow = Math.max(0, (hasBlankRow ? viewRowCount : rowCount) - 1);
     setSelection([{ anchor: { row: 0, col: 0 }, focus: { row: lastRow, col: colCount - 1 } }]);
   };
 
@@ -1029,6 +1354,17 @@ export function MasumeGrid({
     // dropdown (e.g. its scrollbar) must not end the edit.
     if (dateRef.current && dateRef.current.contains(target)) return;
     if (dropdownRef.current && dropdownRef.current.contains(target)) return;
+    // The filter panel runs on native focus and clicks, and its button must
+    // not read as a header click (which sorts and selects the column).
+    // Checked before the empty-grid guard below: a filter that hides every
+    // row still has to be removable.
+    if (filterPanelRef.current && filterPanelRef.current.contains(target)) return;
+    const filterBtn = target.closest('[data-filter-btn]') as HTMLElement | null;
+    if (filterBtn) {
+      e.preventDefault();
+      openFilterPanel(Number(filterBtn.dataset.filterBtn));
+      return;
+    }
     if (target === containerRef.current) return; // scrollbar area
 
     // Interactive elements inside a template cell keep their native
@@ -1154,12 +1490,23 @@ export function MasumeGrid({
   const activeCellRendered =
     rowCount > 0 && colCount > 0 && active.row >= startRow && active.row < endRow;
 
+  // The panel lives in content coordinates, so a column near an edge has to
+  // be pulled back into the part of the grid that is actually on screen
+  // (and out from under the sticky row-number column).
+  const filterPanelLeft = (() => {
+    if (panelCol === null) return 0;
+    const anchored = rowNumW + offsets[panelCol];
+    if (viewportW === 0) return anchored; // not measured yet
+    const min = scrollLeft + rowNumW;
+    return clamp(anchored, min, Math.max(min, scrollLeft + viewportW - FILTER_PANEL_WIDTH));
+  })();
+
   const isColSelected = (c: number) => normRanges.some((r) => c >= r.left && c <= r.right);
   const isRowSelected = (r: number) => normRanges.some((nr) => r >= nr.top && r <= nr.bottom);
 
   const rows: React.ReactNode[] = [];
   for (let r = startRow; r < endRow; r++) {
-    const isBlankRow = hasBlankRow && r >= dataRowCount;
+    const isBlankRow = hasBlankRow && r >= viewRowCount;
     // Row indices handed to the host (values, getCellProps, template) are
     // always data indices, even while the view is sorted.
     const dataRow = toDataRow(r);
@@ -1290,7 +1637,11 @@ export function MasumeGrid({
         (className ? ' ' + className : '')
       }
       style={style}
-      onScroll={(e) => setScrollTop((e.target as HTMLDivElement).scrollTop)}
+      onScroll={(e) => {
+        const el = e.target as HTMLDivElement;
+        setScrollTop(el.scrollTop);
+        setScrollLeft(el.scrollLeft);
+      }}
       onMouseDown={handleRootMouseDown}
       onDoubleClick={handleDoubleClick}
     >
@@ -1329,7 +1680,8 @@ export function MasumeGrid({
                 'masume-grid-hcell' +
                 (isColSelected(c) ? ' masume-grid-hcell--sel' : '') +
                 (canSortCol(c) ? ' masume-grid-hcell--sortable' : '') +
-                (activeSort?.col === c ? ' masume-grid-hcell--sorted' : '')
+                (activeSort?.col === c ? ' masume-grid-hcell--sorted' : '') +
+                (canFilterCol(c) ? ' masume-grid-hcell--filterable' : '')
               }
               style={{ width: widths[c], height: headerH }}
             >
@@ -1347,6 +1699,27 @@ export function MasumeGrid({
                   {activeSort?.col !== c ? '⇅' : activeSort.direction === 'asc' ? '▲' : '▼'}
                 </span>
               )}
+              {/* Like the sort indicator, the button is always there so the
+                  affordance shows before the first click; it fills in once
+                  the column is filtering. Kept out of the tab order — the
+                  grid navigates with the caret, not with Tab. */}
+              {canFilterCol(c) && (
+                <button
+                  type="button"
+                  data-filter-btn={c}
+                  tabIndex={-1}
+                  className={
+                    'masume-grid-filter-btn' +
+                    (isColFiltered(c) ? ' masume-grid-filter-btn--on' : '') +
+                    (panelCol === c ? ' masume-grid-filter-btn--open' : '')
+                  }
+                  aria-label={`${texts.button}: ${columns?.[c]?.title ?? colName(c)}`}
+                  aria-haspopup="dialog"
+                  aria-expanded={panelCol === c}
+                >
+                  {isColFiltered(c) ? '▼' : '▽'}
+                </button>
+              )}
               {canResizeCol(c) && (
                 <div
                   className={
@@ -1359,6 +1732,81 @@ export function MasumeGrid({
               )}
             </div>
           ))}
+          {panelCol !== null && (
+            // Anchored inside the sticky header so it tracks the column
+            // horizontally and stays put while the body scrolls.
+            <div
+              ref={filterPanelRef}
+              role="dialog"
+              aria-label={`${texts.button}: ${columns?.[panelCol]?.title ?? colName(panelCol)}`}
+              className="masume-grid-filter-panel"
+              style={{ top: headerH, left: filterPanelLeft, width: FILTER_PANEL_WIDTH }}
+              onKeyDown={handleFilterPanelKeyDown}
+            >
+              <input
+                ref={filterSearchRef}
+                type="text"
+                className="masume-grid-filter-search"
+                value={filterQuery}
+                placeholder={texts.search}
+                aria-label={texts.search}
+                spellCheck={false}
+                onChange={(e) => handleFilterQueryChange(e.target.value)}
+              />
+              {visibleChoices && (
+                <>
+                  <label className="masume-grid-filter-item masume-grid-filter-item--all">
+                    <input
+                      type="checkbox"
+                      checked={visibleChoices.length > 0 && visibleChoices.every(isChoiceChecked)}
+                      ref={(el) => {
+                        if (el) {
+                          el.indeterminate =
+                            visibleChoices.some(isChoiceChecked) &&
+                            !visibleChoices.every(isChoiceChecked);
+                        }
+                      }}
+                      onChange={toggleAllChoices}
+                    />
+                    <span className="masume-grid-filter-item-label">{texts.all}</span>
+                  </label>
+                  <div className="masume-grid-filter-list">
+                    {visibleChoices.map((group) => (
+                      <label key={group.label} className="masume-grid-filter-item">
+                        <input
+                          type="checkbox"
+                          checked={isChoiceChecked(group)}
+                          onChange={() => toggleChoice(group)}
+                        />
+                        <span className="masume-grid-filter-item-label">
+                          {group.label === '' ? texts.blanks : group.label}
+                        </span>
+                      </label>
+                    ))}
+                    {filterChoices?.truncated && (
+                      <div className="masume-grid-filter-more">{texts.more}</div>
+                    )}
+                  </div>
+                </>
+              )}
+              <div className="masume-grid-filter-actions">
+                <button
+                  type="button"
+                  className="masume-grid-filter-action"
+                  onClick={clearPanelFilter}
+                >
+                  {texts.clear}
+                </button>
+                <button
+                  type="button"
+                  className="masume-grid-filter-action"
+                  onClick={closeFilterPanel}
+                >
+                  {texts.close}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
       <div role="rowgroup" className="masume-grid-body" style={{ width: totalW, height: totalH }}>

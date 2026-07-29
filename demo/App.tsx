@@ -1,7 +1,20 @@
 import { useMemo, useState } from 'react';
 import { MasumeGrid, formatThousands, isCheckboxChecked } from '../src';
-import type { ColumnDef, NormalizedRange } from '../src';
+import type { ColumnDef, FilterTexts, NormalizedRange } from '../src';
 import './demo.css';
+
+// フィルタパネルの文言（既定は英語）
+const FILTER_TEXTS: Partial<FilterTexts> = {
+  all: '(すべて)',
+  blanks: '(空白)',
+  checked: '(チェックあり)',
+  unchecked: '(チェックなし)',
+  search: '検索',
+  clear: 'クリア',
+  close: '閉じる',
+  more: '値が多すぎます — 検索で絞り込んでください',
+  button: 'フィルタ',
+};
 
 const PRODUCTS = ['りんご', 'みかん', 'バナナ', 'ぶどう', '桃', '梨', 'いちご', 'メロン'];
 // マスタデータ想定: コードを保存し、ラベルを表示する
@@ -42,21 +55,24 @@ export default function App() {
   const [resizable, setResizable] = useState(true);
   const [appendBlankRow, setAppendBlankRow] = useState(true);
   const [sortable, setSortable] = useState(true);
+  const [filterable, setFilterable] = useState(true);
   const [selectionLabel, setSelectionLabel] = useState('');
 
   const columns = useMemo<ColumnDef[] | undefined>(
     () =>
       useColumns
         ? [
-            { title: '商品コード', width: 110, readOnly: true },
-            { title: '商品名', width: 160 },
+            // 値の種類が多い列は、チェックリストではなくキーワード検索で絞り込む
+            { title: '商品コード', width: 110, readOnly: true, filter: 'text' },
+            { title: '商品名', width: 160, filter: 'text' },
             { title: 'カテゴリ', width: 110, type: 'select', options: CATEGORY_MASTER },
             { title: '単価', width: 80, type: 'number', format: formatThousands },
             { title: '数量', width: 80, type: 'number' },
             { title: '状態', width: 120, type: 'select', options: STATUSES, filterable: false },
             { title: '入荷日', width: 120, type: 'date' },
+            // チェックボックス型はフィルタも既定でオン / オフの2択になる
             { title: '検品済', width: 70, type: 'checkbox' },
-            { title: 'メモ', width: 200 },
+            { title: 'メモ', width: 200, filter: 'text' },
             {
               // テンプレート型(派生表示): row でデータ行を参照し 単価×数量 を表示
               title: '金額',
@@ -174,6 +190,14 @@ export default function App() {
           />
           ヘッダクリックでソート
         </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={filterable}
+            onChange={(e) => setFilterable(e.target.checked)}
+          />
+          ヘッダのフィルタ
+        </label>
         <span className="demo-selection">{selectionLabel}</span>
       </div>
       <MasumeGrid
@@ -192,6 +216,9 @@ export default function App() {
         appendBlankRow={appendBlankRow}
         sortable={sortable}
         onSortChange={(sort) => console.log('sort', sort)}
+        filterable={filterable}
+        filterTexts={FILTER_TEXTS}
+        onFilterChange={(filters) => console.log('filters', filters)}
         showRowNumbers={showRowNumbers}
         showHeader={showHeader}
         readOnly={readOnly}
@@ -214,6 +241,11 @@ export default function App() {
         sortable を有効にすると、ヘッダクリックで昇順 → 降順 → 解除の順にソートできます
         （列の選択も同時に行われます。並ぶのは表示だけで data は並べ替わりません。
         「金額」「操作」のテンプレート型列は既定でソート対象外）。
+        filterable を有効にすると、ヘッダの ▽ ボタンから列ごとに絞り込めます
+        （絞り込まれるのは表示だけで、非表示の行も data にはそのまま残ります。
+        「商品コード」「商品名」「メモ」は filter: 'text' でキーワード検索、
+        それ以外は値のチェックリスト。「検品済」のようなチェックボックス型は、既定でオン / オフの2択になります。
+        絞り込み中に編集して条件から外れた行は、次にフィルタを変更するまで消えません）。
       </p>
     </div>
   );
