@@ -5,7 +5,7 @@
 軽量・汎用の React スプレッドシートコンポーネント。依存は React のみ（gzip 約 5KB）。
 
 - **グリッド表示** — 行番号・ヘッダーの表示/非表示切り替え、列幅指定、ドラッグでの列幅リサイズ、ヘッダクリックによるソート、Excel 風のヘッダフィルタ、末尾の入力用空行、行の仮想化描画（数万行でも軽快）
-- **セル型** — 文字列 / 数値（全角・カンマ正規化）/ 選択肢（マスタデータのプルダウン、コード保存・ラベル表示）/ 日付（カレンダー入力、和式表記の貼り付け正規化）/ チェックボックス（クリック / Space でトグル）/ テンプレート（任意のコンポーネントをセルに描画）
+- **セル型** — 文字列 / 数値（全角・カンマ正規化）/ 選択肢（マスタデータのプルダウン、コード保存・ラベル表示）/ 日付（カレンダー入力、和式表記の貼り付け正規化）/ チェックボックス（クリック / Space でトグル）/ テンプレート（任意のコンポーネントをセルに描画）。ヘッダーも `headerTemplate` でテンプレート化できます
 - **セル編集** — ダブルクリック / F2 / キー入力で編集開始。**日本語 IME 完全対応**（IMEオンで「A」を打つとセルが編集状態になり「あ」が入力される）
 - **範囲選択** — マウスドラッグ、Shift+クリック/矢印キーで拡張、Ctrl(⌘)+クリックで複数範囲追加。行・列ヘッダークリックで行/列選択、左上コーナーで全選択
 - **コピー＆ペースト** — Ctrl(⌘)+C / X / V。Excel・Google スプレッドシートと相互運用できる TSV 形式（改行・タブ・引用符を含むセルにも対応、単一セルのタイル貼り付けも可）
@@ -58,7 +58,7 @@ function App() {
 | Prop | 型 | 既定値 | 説明 |
 | --- | --- | --- | --- |
 | `data` | `string[][]` | （必須） | グリッドの内容。行の長さは不揃いでも可 |
-| `columns` | `ColumnDef[]` | — | `{ title?, width?, readOnly?, resizable?, sortable?, compare?, filter?, filterLabel?, filterMatch?, type?, options?, strict?, filterable?, template?, format? }` の配列。省略時は data から列数を導出 |
+| `columns` | `ColumnDef[]` | — | `{ title?, width?, readOnly?, resizable?, sortable?, compare?, filter?, filterLabel?, filterMatch?, type?, options?, strict?, searchable?, template?, headerTemplate?, format? }` の配列。省略時は data から列数を導出 |
 | `onChange` | `(next: string[][]) => void` | — | 編集・貼り付け・削除のたびに新しい 2 次元配列で呼ばれる |
 | `onCellChange` | `(row, col, value) => void` | — | 変更セルごとに呼ばれる。`onChange` の代わり/併用可 |
 | `onSelectionChange` | `(ranges, viewToData) => void` | — | 選択変更時（`{top,left,bottom,right}` の配列）。行は**表示行**で、ソート・フィルタ中は `viewToData` でデータ行に変換できる（どちらでもない場合は `null`） |
@@ -209,7 +209,7 @@ const columns: ColumnDef[] = [
 | --- | --- | --- |
 | `text` | テキスト（IME対応） | 既定。自由入力 |
 | `number` | テキスト（IME対応） | 右寄せ表示。確定時に全角数字→半角、カンマ除去を正規化。数値でない入力は**拒否**（元の値を保持） |
-| `select` | 絞り込み付きプルダウン | ↑↓で候補移動、Enter/クリックで確定、文字入力で絞り込み。Alt+↓でも開く。`options` は `string` または `{value, label}`（value を保存し label を表示）。既定では options 外の値を拒否（`strict: false` で自由入力許可）。`filterable: false` で絞り込みを無効化（常に全候補を表示し、文字入力は先頭一致の候補へハイライトを移動） |
+| `select` | 絞り込み付きプルダウン | ↑↓で候補移動、Enter/クリックで確定、文字入力で絞り込み。Alt+↓でも開く。`options` は `string` または `{value, label}`（value を保存し label を表示）。既定では options 外の値を拒否（`strict: false` で自由入力許可）。`searchable: false` で候補の絞り込みを無効化（常に全候補を表示し、文字入力は先頭一致の候補へハイライトを移動） |
 | `date` | ネイティブの日付ピッカー | `YYYY-MM-DD` で保存。貼り付け時は `2026/7/6`・`2026年7月6日`・`20260706`・全角も正規化。無効な日付は拒否。Alt+↓でカレンダーを開く |
 | `checkbox` | トグル（テキスト編集なし） | チェック時 `'true'`・未チェック時 `''` を保存。チェックボックスのクリックまたは Space でトグル（Space は選択中のチェックボックスセルすべてをトグル）。貼り付け時は `TRUE`/`FALSE`・`1`/`0`・`yes`/`no` などを正規化し、それ以外は**拒否** |
 | `template` | なし（カスタム描画） | 列定義の `template` 関数がセル内容を描画。引数は `{ row, col, value }`（`row` は `data` 上のデータ行インデックス）。テンプレート内のボタンや入力欄などはネイティブにクリック・操作可能。コピーは元の値を出力し、貼り付け・Delete も元の値に作用（防ぎたい場合は `readOnly: true`） |
@@ -279,6 +279,48 @@ const columns = useMemo<ColumnDef[]>(
 - コピーされるのは描画結果ではなく**保存値**（`data[row][col]`）です。貼り付け・Delete も保存値に作用するため、上の例のような表示専用列には `readOnly: true` を指定してください。
 - セルは `padding: 0` の flex コンテナ（`align-items: center`）として描画され、コンポーネントがセル全域を制御できます。高さが足りない場合は `rowHeight` を調整してください。
 
+### ヘッダーのテンプレート化
+
+`ColumnDef.headerTemplate` で列見出しを自由に描画できます。`template` と違い `type: 'template'` は不要で、**どのセル型の列でも**使えます。引数は `HeaderCellContext`（`{ col, title }`。`title` 未指定時は A, B, C… が入ります）です:
+
+```tsx
+const columns = useMemo<ColumnDef[]>(
+  () => [
+    // 単位を副題にした2段見出し（さらに増やす場合は headerHeight を上げる）
+    {
+      title: '単価', type: 'number',
+      headerTemplate: ({ title }) => (
+        <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          {title}
+          <small style={{ fontSize: 10, color: '#8a93a0' }}>税抜 / 円</small>
+        </span>
+      ),
+    },
+
+    // データから算出したバッジ（この場合 columns は data に依存させる）
+    {
+      title: '検品済', type: 'checkbox',
+      headerTemplate: ({ title }) => <span>{title}（{data.filter((r) => r[2]).length}）</span>,
+    },
+
+    // ヘッダー内のコントロール: クリックしてもソートや列選択は起きない
+    {
+      title: '操作', type: 'template', readOnly: true,
+      headerTemplate: () => <button type="button" onClick={resetAll}>一括解除</button>,
+      template: ({ row }) => <button type="button" onClick={() => openDetail(row)}>詳細</button>,
+    },
+  ],
+  [data],
+);
+```
+
+補足:
+
+- 差し替わるのは見出し部分だけです。**ソートインジケータ・フィルタボタン・列幅ハンドルはそのまま残る**ため、ヘッダクリックによるソート、フィルタ、幅のドラッグはすべて機能します（見出し部分のクリックでもソートされます）。
+- 内部のインタラクティブ要素（テンプレート型セルと同じ一覧）はネイティブに操作でき、テンプレート型セルと違って**列のソートも列選択も行いません**（ヘッダー内のコントロール操作は列クリックとは別のジェスチャだからです）。
+- `title` は併せて指定してください。見出しのフォールバックと、フィルタボタンのアクセシブルネームに使われます。
+- 見出しの領域はヘッダーの高さでクリップされます（`masume-grid-hcell-label--template` が付き、1行省略のルールが外れます）。複数行の見出しにする場合は `headerHeight` を上げてください。
+
 ## キーボード操作
 
 | キー | 動作 |
@@ -332,7 +374,12 @@ npm run build      # dist/ へライブラリビルド (ESM + CJS + d.ts + CSS)
 
 ## 更新履歴
 
-[npm](https://www.npmjs.com/package/react-masume-grid) で公開しています。これまでのリリースはすべて追加のみで、破壊的変更はありません。
+[npm](https://www.npmjs.com/package/react-masume-grid) で公開しています。
+
+### 0.7.0 — 2026-07-30
+
+- **ヘッダーのテンプレート化**（`ColumnDef.headerTemplate`）: 任意のコンポーネントで列見出しを描画。セル型を問わず使え、ソートインジケータ・フィルタボタン・列幅ハンドルはそのまま機能します。[ヘッダーのテンプレート化](#ヘッダーのテンプレート化)を参照
+- ⚠️ **破壊的変更**: `ColumnDef.filterable` を **`ColumnDef.searchable`** に改名しました。元々 select 列のプルダウンを入力で絞り込むかの設定でしたが、0.6.0 で追加した `filter` 系（行のフィルタ）と紛らわしいためです。プロパティ名を置き換えてください。挙動と既定値（`true`）は変わりません
 
 ### 0.6.0 — 2026-07-29
 
@@ -359,7 +406,7 @@ npm run build      # dist/ へライブラリビルド (ESM + CJS + d.ts + CSS)
 ### 0.2.0 — 2026-07-12
 
 - `checkbox` セル型: クリックまたは Space でトグル（Space は選択中のチェックボックスセルを一括トグル）。Excel からの貼り付け（`TRUE`/`FALSE`・`1`/`0`・`yes`/`no`）を正規化
-- select 列の `ColumnDef.filterable`（`false` で常に全候補を表示し、文字入力は先頭一致の候補へハイライトを移動）
+- select 列の `ColumnDef.filterable`（`false` で常に全候補を表示し、文字入力は先頭一致の候補へハイライトを移動）— 0.7.0 で `searchable` に改名
 - `normalizeCheckboxInput` / `isCheckboxChecked` を公開
 
 ### 0.1.0 — 2026-07-06

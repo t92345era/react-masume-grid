@@ -5,7 +5,7 @@
 A lightweight, generic React spreadsheet component. React is the only dependency (~5KB gzipped).
 
 - **Grid display** — toggleable row numbers and header, per-column widths, drag-to-resize columns, header-click sorting, Excel-style header filtering, optional trailing blank row for new entries, virtualized rows (smooth with tens of thousands of rows)
-- **Cell types** — text / number (normalizes full-width digits and commas) / select (dropdown backed by master data, stores codes while displaying labels) / date (calendar input, normalizes pasted dates in common Japanese formats) / checkbox (click or Space to toggle) / template (render any component per cell)
+- **Cell types** — text / number (normalizes full-width digits and commas) / select (dropdown backed by master data, stores codes while displaying labels) / date (calendar input, normalizes pasted dates in common Japanese formats) / checkbox (click or Space to toggle) / template (render any component per cell). Headers can be templated too (`headerTemplate`)
 - **Cell editing** — start editing by double-click, F2, or just typing. **Full IME support**: with a Japanese IME on, pressing "A" opens the editor and types 「あ」 right into the cell
 - **Range selection** — mouse drag, extend with Shift+click / Shift+arrows, add multiple ranges with Ctrl(⌘)+click. Click row/column headers to select whole rows/columns, the top-left corner to select all
 - **Copy & paste** — Ctrl(⌘)+C / X / V. TSV format interoperable with Excel and Google Sheets (handles cells containing newlines, tabs and quotes; tiles single-cell paste across a selection)
@@ -58,7 +58,7 @@ When `columns` is omitted, the column count is derived from `data` and headers s
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
 | `data` | `string[][]` | (required) | Grid contents. Rows may be ragged |
-| `columns` | `ColumnDef[]` | — | Array of `{ title?, width?, readOnly?, resizable?, sortable?, compare?, filter?, filterLabel?, filterMatch?, type?, options?, strict?, filterable?, template?, format? }`. When omitted, the column count is derived from data |
+| `columns` | `ColumnDef[]` | — | Array of `{ title?, width?, readOnly?, resizable?, sortable?, compare?, filter?, filterLabel?, filterMatch?, type?, options?, strict?, searchable?, template?, headerTemplate?, format? }`. When omitted, the column count is derived from data |
 | `onChange` | `(next: string[][]) => void` | — | Called with a new 2D array on every edit / paste / delete |
 | `onCellChange` | `(row, col, value) => void` | — | Called once per changed cell. Use instead of (or with) `onChange` |
 | `onSelectionChange` | `(ranges, viewToData) => void` | — | Called when the selection changes (array of `{top,left,bottom,right}`). Rows are display rows; `viewToData` maps them to data rows while sorted or filtered (`null` when neither) |
@@ -205,7 +205,7 @@ const columns: ColumnDef[] = [
 | --- | --- | --- |
 | `text` | Text (IME-aware) | Default; free text |
 | `number` | Text (IME-aware) | Right-aligned. On commit, full-width digits are converted and thousands separators removed. Non-numeric input is **rejected** (the cell keeps its old value) |
-| `select` | Filtering dropdown | ↑↓ to move, Enter/click to commit, type to filter. Alt+↓ also opens it. `options` accepts `string` or `{value, label}` (stores value, displays label). Values outside the options are rejected by default (`strict: false` allows free input). `filterable: false` disables the type-to-filter narrowing: the full list stays visible and typing jumps the highlight to the first prefix match instead |
+| `select` | Filtering dropdown | ↑↓ to move, Enter/click to commit, type to filter. Alt+↓ also opens it. `options` accepts `string` or `{value, label}` (stores value, displays label). Values outside the options are rejected by default (`strict: false` allows free input). `searchable: false` disables the type-to-filter narrowing: the full list stays visible and typing jumps the highlight to the first prefix match instead |
 | `date` | Native date picker | Stored as `YYYY-MM-DD`. Pasted text such as `2026/7/6`, `2026年7月6日`, `20260706` and full-width digits is normalized. Invalid dates are rejected. Alt+↓ opens the calendar |
 | `checkbox` | Toggle (no text editor) | Stores `'true'` when checked, `''` when unchecked. Click the checkbox or press Space to toggle (Space toggles every selected checkbox cell). Pasted text such as `TRUE`/`FALSE`, `1`/`0`, `yes`/`no` is normalized; anything else is **rejected** |
 | `template` | None (custom rendering) | Cell content is rendered by the column's `template` function, which receives `{ row, col, value }` — `row` is the index into `data`. Interactive elements inside (buttons, inputs, …) receive clicks natively. Copy still emits the underlying value; paste/delete still write it (set `readOnly: true` to prevent that) |
@@ -275,6 +275,48 @@ Notes:
 - Copy emits the **stored value** (`data[row][col]`), not the rendered markup. Paste and Delete also write the stored value — set `readOnly: true` for display-only columns like the ones above.
 - The cell renders with `padding: 0` and is a flex container with `align-items: center`; your component controls the whole box. Use `rowHeight` if it needs more vertical room.
 
+### Header templates
+
+`ColumnDef.headerTemplate` renders a column's caption. It works on **any** column type — unlike `template`, which needs `type: 'template'` — and receives a `HeaderCellContext` of `{ col, title }` (`title` falls back to the spreadsheet letter when unset):
+
+```tsx
+const columns = useMemo<ColumnDef[]>(
+  () => [
+    // Two-line caption with a unit (raise `headerHeight` for taller ones).
+    {
+      title: 'Price', type: 'number',
+      headerTemplate: ({ title }) => (
+        <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          {title}
+          <small style={{ fontSize: 10, color: '#8a93a0' }}>excl. tax / ¥</small>
+        </span>
+      ),
+    },
+
+    // Badge computed from the data (`columns` then depends on `data`).
+    {
+      title: 'Inspected', type: 'checkbox',
+      headerTemplate: ({ title }) => <span>{title} ({data.filter((r) => r[2]).length})</span>,
+    },
+
+    // A control in the header: the click does not sort or select the column.
+    {
+      title: 'Actions', type: 'template', readOnly: true,
+      headerTemplate: () => <button type="button" onClick={resetAll}>Reset</button>,
+      template: ({ row }) => <button type="button" onClick={() => openDetail(row)}>Detail</button>,
+    },
+  ],
+  [data],
+);
+```
+
+Notes:
+
+- Only the caption is replaced. The **sort indicator, filter button and resize handle stay in place**, so header-click sorting, filtering and drag-resizing keep working — a click on your caption still sorts the column.
+- Interactive elements inside (the same list as template cells) keep native focus and click behavior, and — unlike a template cell — do **not** sort or select the column, since a control in a header is its own gesture.
+- Still set `title`: it is the fallback caption and the filter button's accessible name.
+- The caption box is clipped to the header (`masume-grid-hcell-label--template`, which drops the single-line ellipsis rule). Raise `headerHeight` for multi-line captions.
+
 ## Keyboard
 
 | Key | Action |
@@ -328,7 +370,12 @@ npm run build      # library build into dist/ (ESM + CJS + d.ts + CSS)
 
 ## Changelog
 
-Published on [npm](https://www.npmjs.com/package/react-masume-grid). Every release so far is additive — no breaking changes.
+Published on [npm](https://www.npmjs.com/package/react-masume-grid).
+
+### 0.7.0 — 2026-07-30
+
+- **Header templates** (`ColumnDef.headerTemplate`): render a column caption with your own component, on any column type, while the sort indicator, filter button and resize handle keep working. See [Header templates](#header-templates)
+- ⚠️ **Breaking**: `ColumnDef.filterable` is renamed to **`ColumnDef.searchable`**. It only ever controlled the type-to-narrow behavior of a select column's dropdown, which read as row filtering next to the `filter` options added in 0.6.0. Rename the property; the behavior and default (`true`) are unchanged
 
 ### 0.6.0 — 2026-07-29
 
@@ -355,7 +402,7 @@ Published on [npm](https://www.npmjs.com/package/react-masume-grid). Every relea
 ### 0.2.0 — 2026-07-12
 
 - `checkbox` cell type: click or Space to toggle (Space toggles every selected checkbox cell), with Excel-compatible paste normalization (`TRUE`/`FALSE`, `1`/`0`, `yes`/`no`)
-- `ColumnDef.filterable` for select columns (`false` keeps the full option list and jumps the highlight to the first prefix match)
+- `ColumnDef.filterable` for select columns (`false` keeps the full option list and jumps the highlight to the first prefix match) — renamed to `searchable` in 0.7.0
 - Exported `normalizeCheckboxInput` / `isCheckboxChecked`
 
 ### 0.1.0 — 2026-07-06
