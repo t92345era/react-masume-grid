@@ -9,6 +9,7 @@ export type {
   FilterMode,
   FilterState,
   FilterTexts,
+  HeaderCellContext,
   MasumeGridProps,
   NormalizedRange,
   SelectOption,

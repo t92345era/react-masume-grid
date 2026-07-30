@@ -40,6 +40,14 @@ export interface TemplateCellContext {
   value: CellValue;
 }
 
+/** Argument passed to a column's `headerTemplate` function. */
+export interface HeaderCellContext {
+  /** Column index. */
+  col: number;
+  /** The column's `title`, or its spreadsheet letter (A, B, C, …) when unset. */
+  title: string;
+}
+
 export interface ColumnDef {
   /** Cell type. Default: 'text'. */
   type?: ColumnType;
@@ -54,14 +62,24 @@ export interface ColumnDef {
    * For 'select' columns: narrow the dropdown to matching options as the
    * user types. Default: true. Set false to always show the full option
    * list (typing then jumps the highlight to the first prefix match).
+   * Unrelated to `filter`, which filters *rows* from the header.
    */
-  filterable?: boolean;
+  searchable?: boolean;
   /**
    * For 'template' columns: renders the cell content. Receives the data
    * row index, column index and stored value. Interactive elements inside
    * (buttons, links, …) receive clicks natively.
    */
   template?: (ctx: TemplateCellContext) => ReactNode;
+  /**
+   * Renders this column's header caption in place of `title`. The sort
+   * indicator, filter button and resize handle stay where they are, so
+   * sorting and filtering keep working. Interactive elements inside
+   * (buttons, links, …) receive clicks natively and do not sort or select
+   * the column. Set `title` as well: it is still used for the filter
+   * button's accessible name.
+   */
+  headerTemplate?: (ctx: HeaderCellContext) => ReactNode;
   /**
    * Display-only formatter for 'text', 'number' and 'date' columns: the
    * stored value is passed in and the returned string is shown in the cell.

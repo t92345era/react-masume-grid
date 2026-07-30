@@ -66,12 +66,35 @@ export default function App() {
             { title: '商品コード', width: 110, readOnly: true, filter: 'text' },
             { title: '商品名', width: 160, filter: 'text' },
             { title: 'カテゴリ', width: 110, type: 'select', options: CATEGORY_MASTER },
-            { title: '単価', width: 80, type: 'number', format: formatThousands },
+            {
+              // ヘッダのテンプレート化: 単位を副題にした2段見出し
+              title: '単価',
+              width: 80,
+              type: 'number',
+              format: formatThousands,
+              headerTemplate: ({ title }) => (
+                <span className="demo-hcell-stacked">
+                  {title}
+                  <span className="demo-hcell-unit">税抜 / 円</span>
+                </span>
+              ),
+            },
             { title: '数量', width: 80, type: 'number' },
-            { title: '状態', width: 120, type: 'select', options: STATUSES, filterable: false },
+            { title: '状態', width: 120, type: 'select', options: STATUSES, searchable: false },
             { title: '入荷日', width: 120, type: 'date' },
             // チェックボックス型はフィルタも既定でオン / オフの2択になる
-            { title: '検品済', width: 70, type: 'checkbox' },
+            {
+              // ヘッダのテンプレート化: データから件数バッジを描画
+              title: '検品済',
+              width: 110,
+              type: 'checkbox',
+              headerTemplate: ({ title }) => (
+                <span className="demo-hcell-badge">
+                  {title}
+                  <span>{data.filter((r) => isCheckboxChecked(r[7] ?? '')).length}</span>
+                </span>
+              ),
+            },
             { title: 'メモ', width: 200, filter: 'text' },
             {
               // テンプレート型(派生表示): row でデータ行を参照し 単価×数量 を表示
@@ -94,6 +117,18 @@ export default function App() {
               width: 90,
               type: 'template',
               readOnly: true,
+              // ヘッダ内のボタンも同様（列のソート・選択は起きない）
+              headerTemplate: () => (
+                <button
+                  type="button"
+                  className="demo-hcell-btn"
+                  onClick={() =>
+                    setData((prev) => prev.map((row) => row.map((v, i) => (i === 7 ? '' : v))))
+                  }
+                >
+                  検品解除
+                </button>
+              ),
               template: ({ row }) => (
                 <button
                   type="button"
@@ -228,12 +263,16 @@ export default function App() {
       />
       <p className="demo-note">
         300行 × 11列（行は仮想化描画）。「商品コード」列は readOnly、
-        「カテゴリ」「状態」は選択肢型（カテゴリはコード保存・ラベル表示、状態は filterable: false で常に全候補表示）、
+        「カテゴリ」「状態」は選択肢型（カテゴリはコード保存・ラベル表示、状態は searchable: false で常に全候補表示）、
         「単価」「数量」は数値型（全角・カンマ入り入力も正規化。単価は format: formatThousands で桁区切り表示）、「入荷日」は日付型、
         「検品済」はチェックボックス型（クリック / Space でトグル）、
         「金額」「操作」はテンプレート型（任意のコンポーネントを描画。関数にはデータ行のインデックスが渡されます。
         「金額」は単価×数量の派生表示 — 単価や数量を編集すると連動して更新、「操作」はボタンでその行を参照）。
         ヘッダーの境界をドラッグすると列幅を変更できます。
+        headerTemplate でヘッダーもテンプレート化しています —
+        「単価」は単位付きの2段見出し、「検品済」はデータから算出した件数バッジ、
+        「操作」はヘッダー内のボタン（「検品解除」。クリックしてもソートや列選択は起きず、全行の検品済を解除します）。
+        ソート矢印・フィルタボタン・列幅ハンドルはテンプレート化後もそのまま使えます。
         getCellProps によるセル単位の上書きも入っています —
         検品済の行は「単価」「数量」が編集ロック（グレー表示）、数量が 0 のセルは警告ハイライトされます。
         appendBlankRow により最終行の下に入力用の空行が1行表示され、そこに値を入力して確定すると行が追加されます

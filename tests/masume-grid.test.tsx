@@ -310,13 +310,13 @@ describe('MasumeGrid', () => {
     expect(screen.getAllByRole('option').map((el) => el.textContent)).toEqual(['みかん']);
   });
 
-  it('keeps the full option list while typing when filterable is false', () => {
+  it('keeps the full option list while typing when searchable is false', () => {
     const onChange = vi.fn();
     const { container } = render(
       <MasumeGrid
         data={[['']]}
         columns={[
-          { title: 'S', type: 'select', options: ['りんご', 'みかん', 'メロン'], filterable: false },
+          { title: 'S', type: 'select', options: ['りんご', 'みかん', 'メロン'], searchable: false },
         ]}
         onChange={onChange}
       />,
@@ -335,12 +335,12 @@ describe('MasumeGrid', () => {
     expect(onChange).toHaveBeenCalledWith([['みかん']]);
   });
 
-  it('navigates the unfiltered dropdown with arrows when filterable is false', () => {
+  it('navigates the unfiltered dropdown with arrows when searchable is false', () => {
     const onChange = vi.fn();
     const { container } = render(
       <MasumeGrid
         data={[['']]}
-        columns={[{ title: 'S', type: 'select', options: ['x', 'y'], filterable: false }]}
+        columns={[{ title: 'S', type: 'select', options: ['x', 'y'], searchable: false }]}
         onChange={onChange}
       />,
     );
@@ -352,13 +352,13 @@ describe('MasumeGrid', () => {
     expect(onChange).toHaveBeenCalledWith([['y']]);
   });
 
-  it('commits typed free text when filterable is false and strict is false', () => {
+  it('commits typed free text when searchable is false and strict is false', () => {
     const onChange = vi.fn();
     const { container } = render(
       <MasumeGrid
         data={[['']]}
         columns={[
-          { title: 'S', type: 'select', options: ['x', 'y'], strict: false, filterable: false },
+          { title: 'S', type: 'select', options: ['x', 'y'], strict: false, searchable: false },
         ]}
         onChange={onChange}
       />,
@@ -1065,6 +1065,75 @@ describe('MasumeGrid', () => {
     fireEvent.keyDown(editor(), { key: 'Enter' });
     // The committed row joins the end; a fresh blank row follows it.
     expect(colValues(container, 0)).toEqual(['a', 'b', 'zz', '']);
+  });
+
+  // ----- header templates -------------------------------------------------
+
+  it('renders a column header with headerTemplate', () => {
+    const headerTemplate = vi.fn(({ col, title }: { col: number; title: string }) => (
+      <span>
+        {title}/{col}
+      </span>
+    ));
+    const { container } = render(
+      <MasumeGrid
+        data={[['a', 'b']]}
+        columns={[{ title: 'Name', headerTemplate }, {}]}
+        showRowNumbers={false}
+      />,
+    );
+    expect(container.querySelector('[data-hcol="0"]')!.textContent).toBe('Name/0');
+    // Untitled columns fall back to their spreadsheet letter.
+    expect(container.querySelector('[data-hcol="1"]')!.textContent).toBe('B');
+    expect(
+      container.querySelector('[data-hcol="0"] .masume-grid-hcell-label')!.className,
+    ).toContain('masume-grid-hcell-label--template');
+  });
+
+  it('keeps sorting and filtering usable on a templated header', () => {
+    const { container } = render(
+      <MasumeGrid
+        data={[['b'], ['a']]}
+        columns={[{ title: 'Name', headerTemplate: ({ title }) => <em>{title}</em> }]}
+        sortable
+        filterable
+      />,
+    );
+    const hcell = container.querySelector('[data-hcol="0"]') as HTMLElement;
+    expect(hcell.querySelector('.masume-grid-sort-arrow')).toBeTruthy();
+    expect(hcell.querySelector('[data-filter-btn]')).toBeTruthy();
+    // A click on the caption still sorts.
+    fireEvent.mouseDown(hcell.querySelector('em')!);
+    expect(colValues(container, 0)).toEqual(['a', 'b']);
+  });
+
+  it('lets interactive header content click natively without sorting', () => {
+    const onClick = vi.fn();
+    const onSelectionChange = vi.fn();
+    const { container } = render(
+      <MasumeGrid
+        data={[['b'], ['a']]}
+        columns={[
+          {
+            title: 'Name',
+            headerTemplate: () => (
+              <button type="button" onClick={onClick}>
+                pick
+              </button>
+            ),
+          },
+        ]}
+        sortable
+        onSelectionChange={onSelectionChange}
+      />,
+    );
+    onSelectionChange.mockClear();
+    const button = screen.getByText('pick');
+    fireEvent.mouseDown(button);
+    fireEvent.click(button);
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(colValues(container, 0)).toEqual(['b', 'a']); // not sorted
+    expect(onSelectionChange).not.toHaveBeenCalled(); // column not selected
   });
 
   // ----- filtering --------------------------------------------------------

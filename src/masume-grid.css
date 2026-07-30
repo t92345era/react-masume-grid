@@ -71,6 +71,22 @@
   white-space: nowrap;
 }
 
+/* A header template brings its own layout, so the caption box stops
+   forcing single-line ellipsis text onto it. It stays clipped to the header
+   box (raise `headerHeight` for multi-line captions) — clipping here rather
+   than on the header cell keeps the resize handle, which deliberately
+   straddles the column border, grabbable. */
+.masume-grid-hcell-label--template {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  max-width: 100%;
+  max-height: 100%;
+  white-space: normal;
+  text-overflow: clip;
+}
+
 /* Resize grab zone straddling the column border. */
 .masume-grid-resize-handle {
   position: absolute;

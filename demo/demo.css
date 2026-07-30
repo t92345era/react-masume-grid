@@ -77,6 +77,50 @@ body {
   margin-top: 10px;
 }
 
+/* headerTemplate demo: two-line caption, count badge, header action button */
+.demo-hcell-stacked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.15;
+}
+
+.demo-hcell-unit {
+  font-size: 10px;
+  font-weight: normal;
+  color: #8a93a0;
+}
+
+.demo-hcell-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.demo-hcell-badge > span {
+  padding: 0 4px;
+  border-radius: 7px;
+  background: #1d70d6;
+  color: #fff;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.demo-hcell-btn {
+  padding: 1px 6px;
+  border: 1px solid #d5dae1;
+  border-radius: 4px;
+  background: #fff;
+  color: #1d70d6;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.demo-hcell-btn:hover {
+  background: #e2ebf8;
+}
+
 /* getCellProps demo: locked cells (inspected rows) and warning cells (qty 0) */
 .demo-cell-locked {
   background: #f4f5f7;

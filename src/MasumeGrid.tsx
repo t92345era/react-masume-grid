@@ -130,8 +130,9 @@ export function MasumeGrid({
     [columns],
   );
 
-  const isFilterable = useCallback(
-    (col: number) => columns?.[col]?.filterable ?? true,
+  /** Whether a select column's dropdown narrows as the user types. */
+  const isSearchable = useCallback(
+    (col: number) => columns?.[col]?.searchable ?? true,
     [columns],
   );
 
@@ -688,13 +689,13 @@ export function MasumeGrid({
   const dropdownOptions = useMemo(() => {
     if (!editing || editingType !== 'select') return null;
     const opts = selectOptions.get(editing.col) ?? [];
-    if (optionFilter === null || !isFilterable(editing.col)) return opts;
+    if (optionFilter === null || !isSearchable(editing.col)) return opts;
     const q = optionFilter.trim().toLowerCase();
     if (q === '') return opts;
     return opts.filter(
       (o) => o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q),
     );
-  }, [editing, editingType, selectOptions, optionFilter, isFilterable]);
+  }, [editing, editingType, selectOptions, optionFilter, isSearchable]);
 
   // Keep the highlight on an exact match (or the current cell value) when possible.
   useEffect(() => {
@@ -704,9 +705,9 @@ export function MasumeGrid({
       const raw = data[toDataRow(editing.row)]?.[editing.col] ?? '';
       idx = dropdownOptions.findIndex((o) => o.value === raw);
     }
-    // Non-filterable dropdown: typing jumps the highlight to the first
+    // Non-searchable dropdown: typing jumps the highlight to the first
     // prefix match (native-select-style type-ahead) and otherwise stays put.
-    if (idx < 0 && optionFilter !== null && !isFilterable(editing.col)) {
+    if (idx < 0 && optionFilter !== null && !isSearchable(editing.col)) {
       const q = optionFilter.trim().toLowerCase();
       if (q !== '') idx = dropdownOptions.findIndex((o) => o.label.toLowerCase().startsWith(q));
       if (idx < 0) return;
@@ -1040,11 +1041,11 @@ export function MasumeGrid({
         if (e.key === 'Enter' || e.key === 'Tab') {
           e.preventDefault();
           const opt = dropdownOptions[dropdownIndex];
-          // When filtering, the highlight tracks what was typed, so it wins.
-          // Without filtering, typed free text (strict: false) wins unless
-          // the user explicitly picked an option with the arrow keys.
+          // While searching, the highlight tracks what was typed, so it
+          // wins. Otherwise typed free text (strict: false) wins unless the
+          // user explicitly picked an option with the arrow keys.
           const useOpt =
-            isFilterable(ed.col) ||
+            isSearchable(ed.col) ||
             optionFilter === null ||
             dropdownNavRef.current ||
             columns?.[ed.col]?.strict !== false;
@@ -1265,7 +1266,7 @@ export function MasumeGrid({
       setEditing({ row: active.row, col: active.col, mode: 'replace' });
     }
     setEditValue(e.target.value);
-    setOptionFilter(e.target.value); // user typed (narrows filterable dropdowns)
+    setOptionFilter(e.target.value); // user typed (narrows searchable dropdowns)
     dropdownNavRef.current = false;
   };
 
@@ -1379,6 +1380,14 @@ export function MasumeGrid({
         commitEdit();
         const pos = { row: Number(tplCell.dataset.row), col: Number(tplCell.dataset.col) };
         setSelection([{ anchor: pos, focus: pos }]);
+        return;
+      }
+      // Same deal inside a header template — except that the column is not
+      // selected either: a control in a header (a select-all checkbox, a
+      // menu) is its own gesture, not a column click.
+      const tplHeader = target.closest('[data-hcol]') as HTMLElement | null;
+      if (tplHeader && columns?.[Number(tplHeader.dataset.hcol)]?.headerTemplate) {
+        commitEdit();
         return;
       }
     }
@@ -1500,6 +1509,9 @@ export function MasumeGrid({
     const min = scrollLeft + rowNumW;
     return clamp(anchored, min, Math.max(min, scrollLeft + viewportW - FILTER_PANEL_WIDTH));
   })();
+
+  /** A column's caption, falling back to its spreadsheet letter. */
+  const headerTitle = (col: number) => columns?.[col]?.title ?? colName(col);
 
   const isColSelected = (c: number) => normRanges.some((r) => c >= r.left && c <= r.right);
   const isRowSelected = (r: number) => normRanges.some((nr) => r >= nr.top && r <= nr.bottom);
@@ -1685,7 +1697,18 @@ export function MasumeGrid({
               }
               style={{ width: widths[c], height: headerH }}
             >
-              <span className="masume-grid-hcell-label">{columns?.[c]?.title ?? colName(c)}</span>
+              <span
+                className={
+                  'masume-grid-hcell-label' +
+                  (columns?.[c]?.headerTemplate ? ' masume-grid-hcell-label--template' : '')
+                }
+              >
+                {/* A header template replaces the caption only — the sort
+                    indicator, filter button and resize handle below stay put
+                    so both gestures keep working. */}
+                {columns?.[c]?.headerTemplate?.({ col: c, title: headerTitle(c) }) ??
+                  headerTitle(c)}
+              </span>
               {/* Every sortable column keeps an indicator so the affordance is
                   visible before the first click; it only lights up once sorted. */}
               {canSortCol(c) && (
@@ -1713,7 +1736,7 @@ export function MasumeGrid({
                     (isColFiltered(c) ? ' masume-grid-filter-btn--on' : '') +
                     (panelCol === c ? ' masume-grid-filter-btn--open' : '')
                   }
-                  aria-label={`${texts.button}: ${columns?.[c]?.title ?? colName(c)}`}
+                  aria-label={`${texts.button}: ${headerTitle(c)}`}
                   aria-haspopup="dialog"
                   aria-expanded={panelCol === c}
                 >
@@ -1738,7 +1761,7 @@ export function MasumeGrid({
             <div
               ref={filterPanelRef}
               role="dialog"
-              aria-label={`${texts.button}: ${columns?.[panelCol]?.title ?? colName(panelCol)}`}
+              aria-label={`${texts.button}: ${headerTitle(panelCol)}`}
               className="masume-grid-filter-panel"
               style={{ top: headerH, left: filterPanelLeft, width: FILTER_PANEL_WIDTH }}
               onKeyDown={handleFilterPanelKeyDown}
