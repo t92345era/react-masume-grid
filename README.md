@@ -151,7 +151,7 @@ Column widths are the one uncontrolled exception — widths set by dragging are 
 
 ### Filtering
 
-`filterable` puts a `▽` button on every column header. It opens an Excel-style panel: a checklist of the column's distinct values with a search box, applied as you click.
+`filterable` puts a funnel button on every column header. It opens an Excel-style panel: a checklist of the column's distinct values with a search box, applied as you click.
 
 ```tsx
 <MasumeGrid
@@ -178,7 +178,7 @@ Column widths are the one uncontrolled exception — widths set by dragging are 
 - **`checkbox` columns filter by state**, with no configuration: the panel offers `(Checked)` / `(Unchecked)`, and every spelling that `isCheckboxChecked` accepts falls into the right one.
 - `ColumnDef.filterMatch(value, filter, row)` replaces the built-in matching for a column (e.g. numeric ranges or comparing against another column).
 - `(All)` checks or unchecks everything the search box currently leaves visible, so "search, then keep only the hits" is two clicks.
-- The panel closes on Escape, Enter, `Close`, or a click outside; `Clear` removes the column's filter. Header buttons carry `aria-haspopup` / `aria-expanded`, the panel is a `role="dialog"`, and the glyph fills in (`▽` → `▼`, class `masume-grid-filter-btn--on`) while the column is filtering.
+- The panel closes on Escape, Enter, `Close`, or a click outside; `Clear` removes the column's filter. Header buttons carry `aria-haspopup` / `aria-expanded`, the panel is a `role="dialog"`, and the funnel fills in (outline → solid, class `masume-grid-filter-btn--on`) while the column is filtering. The funnel is an inline SVG drawn by the library itself — no icon font, no third-party icon set — and it takes its color from `currentColor`, so the accent variable themes it.
 - Filter state lives inside the component. Use `onFilterChange` to persist it and `defaultFilters` to restore it. Override the panel's English strings with `filterTexts` (`all`, `blanks`, `checked`, `unchecked`, `search`, `clear`, `close`, `more`, `button`).
 
 ## Cell types
@@ -371,6 +371,10 @@ npm run build      # library build into dist/ (ESM + CJS + d.ts + CSS)
 ## Changelog
 
 Published on [npm](https://www.npmjs.com/package/react-masume-grid).
+
+### 0.7.1 — 2026-07-30
+
+- The header filter button now shows a **funnel** (outline, filled while filtering) instead of `▽` / `▼`, which read as another sort control next to the sort arrows. Drawn as an inline SVG in the library, so nothing is added to the dependencies or to the license file
 
 ### 0.7.0 — 2026-07-30
 

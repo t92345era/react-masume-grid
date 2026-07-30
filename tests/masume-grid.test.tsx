@@ -1413,11 +1413,14 @@ describe('MasumeGrid', () => {
     openFilter('Item');
     fireEvent.click(panelBoxes()[1]);
     expect(colValues(container, 0)).toEqual(['carrot', 'banana']);
-    expect(filterButton('Item').textContent).toBe('▼'); // filtering
+    // The funnel icon fills in while the column narrows the view.
+    expect(filterButton('Item').className).toContain('masume-grid-filter-btn--on');
+    expect(filterButton('Item').querySelector('path')!.getAttribute('fill')).toBe('currentColor');
 
     fireEvent.click(screen.getByText('クリア'));
     expect(colValues(container, 0)).toEqual(['apple', 'carrot', 'apple', 'banana']);
-    expect(filterButton('Item').textContent).toBe('▽');
+    expect(filterButton('Item').className).not.toContain('masume-grid-filter-btn--on');
+    expect(filterButton('Item').querySelector('path')!.getAttribute('fill')).toBe('none');
 
     fireEvent.keyDown(panel(), { key: 'Escape' });
     expect(screen.queryByRole('dialog')).toBeNull();

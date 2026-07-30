@@ -280,8 +280,8 @@ export interface MasumeGridProps {
   /** Initial sort while `sortable` is on. Default: unsorted. */
   defaultSort?: SortState | null;
   /**
-   * Filter rows from the column headers (Excel-style ▽ button opening a
-   * checklist of the column's values). `data` is never modified — only the
+   * Filter rows from the column headers (Excel-style funnel button opening
+   * a checklist of the column's values). `data` is never modified — only the
    * displayed rows are narrowed, so `onChange` / `onCellChange` /
    * `getCellProps` / `template` keep using `data` indices and hidden rows
    * are preserved. Rows are re-evaluated when a filter changes, not while

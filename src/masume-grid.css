@@ -189,9 +189,14 @@
   border-radius: 2px;
   background: transparent;
   color: var(--masume-grid-readonly-fg);
-  font-size: 9px;
   line-height: 1;
   cursor: pointer;
+}
+
+.masume-grid-filter-icon {
+  display: block;
+  width: 11px;
+  height: 11px;
 }
 
 .masume-grid-filter-btn:hover {

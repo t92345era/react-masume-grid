@@ -67,6 +67,33 @@ function compareSortKeys(a: SortKey, b: SortKey): number {
   return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
 }
 
+/**
+ * Funnel outline in a 12×12 box: wide mouth, converging sides, short stem.
+ * Drawn here rather than taken from an icon set so the library stays free of
+ * dependencies and third-party attribution, and so it inherits `currentColor`
+ * like the rest of the header.
+ */
+const FILTER_ICON_PATH = 'M1.6 2.6H10.4L7 6.6V10.2L5 8.9V6.6Z';
+
+/** Empty while the column passes every row, filled once it filters. */
+function FilterIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg viewBox="0 0 12 12" className="masume-grid-filter-icon" aria-hidden="true">
+      {filled ? (
+        <path d={FILTER_ICON_PATH} fill="currentColor" />
+      ) : (
+        <path
+          d={FILTER_ICON_PATH}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.1"
+          strokeLinejoin="round"
+        />
+      )}
+    </svg>
+  );
+}
+
 /** Width- and case-insensitive form used by filter matching and the search box. */
 function normalizeFilterText(text: string): string {
   return toHalfWidth(text).toLowerCase();
@@ -1723,9 +1750,11 @@ export function MasumeGrid({
                 </span>
               )}
               {/* Like the sort indicator, the button is always there so the
-                  affordance shows before the first click; it fills in once
-                  the column is filtering. Kept out of the tab order — the
-                  grid navigates with the caret, not with Tab. */}
+                  affordance shows before the first click; its funnel fills in
+                  once the column is filtering. A funnel rather than a triangle:
+                  next to the sort arrows a ▽ read as another sort control.
+                  Kept out of the tab order — the grid navigates with the
+                  caret, not with Tab. */}
               {canFilterCol(c) && (
                 <button
                   type="button"
@@ -1740,7 +1769,7 @@ export function MasumeGrid({
                   aria-haspopup="dialog"
                   aria-expanded={panelCol === c}
                 >
-                  {isColFiltered(c) ? '▼' : '▽'}
+                  <FilterIcon filled={isColFiltered(c)} />
                 </button>
               )}
               {canResizeCol(c) && (
