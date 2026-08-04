@@ -782,6 +782,91 @@ describe('MasumeGrid', () => {
     expect(setData).toHaveBeenCalledWith('text/plain', 'a\tb');
   });
 
+  const pasteAt = (container: HTMLElement, row: number, col: number, text: string) => {
+    fireEvent.mouseDown(container.querySelector(`[data-row="${row}"][data-col="${col}"]`)!);
+    fireEvent.paste(editor(), { clipboardData: { getData: () => text } });
+  };
+
+  it('grows the data when a paste runs past the last row', () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <MasumeGrid
+        data={[['a'], ['b']]}
+        columns={[{ title: 'A' }]}
+        onChange={onChange}
+        appendBlankRow
+      />,
+    );
+    pasteAt(container, 0, 0, 'p1\np2\np3\np4');
+    expect(onChange).toHaveBeenCalledWith([['p1'], ['p2'], ['p3'], ['p4']]);
+  });
+
+  it('clips a paste at the last row without appendBlankRow', () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <MasumeGrid data={[['a'], ['b']]} columns={[{ title: 'A' }]} onChange={onChange} />,
+    );
+    pasteAt(container, 0, 0, 'p1\np2\np3\np4');
+    expect(onChange).toHaveBeenCalledWith([['p1'], ['p2']]);
+  });
+
+  it('shows a fresh blank row under the rows a paste added', () => {
+    function Harness() {
+      const [data, setData] = useState([['a'], ['b']]);
+      return <MasumeGrid data={data} onChange={setData} columns={[{ title: 'A' }]} appendBlankRow />;
+    }
+    const { container } = render(<Harness />);
+    pasteAt(container, 0, 0, 'p1\np2\np3\np4\np5');
+    // header + the 5 pasted rows + the blank row that follows them
+    expect(container.querySelector('[role="grid"]')!.getAttribute('aria-rowcount')).toBe('7');
+  });
+
+  it('grows columns on paste only when they are derived from the data', () => {
+    const derived = vi.fn();
+    const { container, unmount } = render(
+      <MasumeGrid data={[['a']]} onChange={derived} appendBlankRow />,
+    );
+    pasteAt(container, 0, 0, 'x\ty\tz');
+    expect(derived).toHaveBeenCalledWith([['x', 'y', 'z']]);
+    unmount();
+
+    // An explicit `columns` array has no definition for the extra cells.
+    const fixed = vi.fn();
+    const second = render(
+      <MasumeGrid data={[['a']]} columns={[{ title: 'A' }]} onChange={fixed} appendBlankRow />,
+    );
+    pasteAt(second.container, 0, 0, 'x\ty\tz');
+    expect(fixed).toHaveBeenCalledWith([['x']]);
+  });
+
+  it('leaves no holes when a growing paste skips empty rows', () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <MasumeGrid data={[['a']]} columns={[{ title: 'A' }]} onChange={onChange} appendBlankRow />,
+    );
+    pasteAt(container, 0, 0, 'p1\n\n\np4');
+    const next = onChange.mock.calls[0][0];
+    expect(next).toEqual([['p1'], [], [], ['p4']]);
+    expect(next.some((row: unknown) => row === undefined)).toBe(false);
+  });
+
+  it('appends rows at the end of the data when pasting while sorted', () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <MasumeGrid
+        data={[['b'], ['a']]}
+        columns={[{ title: 'Name' }]}
+        onChange={onChange}
+        appendBlankRow
+        sortable
+      />,
+    );
+    fireEvent.mouseDown(screen.getByText('Name').closest('[data-hcol]')!); // ascending: a, b
+    pasteAt(container, 0, 0, 'p1\np2\np3\np4');
+    // p1/p2 overwrite the sorted rows, the overflow lands at the end of `data`
+    expect(onChange).toHaveBeenCalledWith([['p2'], ['p1'], ['p3'], ['p4']]);
+  });
+
   // ----- sorting ----------------------------------------------------------
 
   const colValues = (container: HTMLElement, col: number) =>

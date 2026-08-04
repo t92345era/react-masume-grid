@@ -252,8 +252,16 @@ export interface MasumeGridProps {
    * row). `data` itself is left untouched: the row only exists in the
    * rendering, and committing a value in it calls `onChange` with an array
    * one row longer (and `onCellChange` with `row === data.length`), after
-   * which a fresh blank row appears again. Ignored when the grid is
-   * `readOnly`. Default: false.
+   * which a fresh blank row appears again.
+   *
+   * A paste that runs past the last row grows `data` by as many rows as it
+   * needs instead of being cut off, appending them at the end even while the
+   * grid is sorted or filtered. It widens rows the same way when `columns` is
+   * omitted (the column count then follows the data); with an explicit
+   * `columns` array there is no definition for the extra cells, so a paste
+   * still clips at the last column.
+   *
+   * Ignored when the grid is `readOnly`. Default: false.
    */
   appendBlankRow?: boolean;
   /** Show the row-number column. Default: true. */

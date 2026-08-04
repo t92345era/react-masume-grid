@@ -474,12 +474,13 @@ export function MasumeGrid({
   // Display→data row map of the current render, for effects that run after it.
   const viewToDataRef = useRef<number[] | null>(null);
   viewToDataRef.current = viewToData;
-  // Set when a write materialized the blank row: `data` grows only after the
-  // parent re-renders, so the caret is allowed one row past `rowCount` in the
-  // meantime (that row is the blank row that is about to appear).
-  const grewRowsRef = useRef(false);
+  // How many rows a write just added past the end of `data` (one when the
+  // blank row was filled in, more when a paste ran off the bottom). `data`
+  // grows only after the parent re-renders, so the caret is allowed that many
+  // rows past `rowCount` in the meantime.
+  const grewRowsRef = useRef(0);
   useEffect(() => {
-    grewRowsRef.current = false;
+    grewRowsRef.current = 0;
   }, [data]);
 
   const lastRange = selection[selection.length - 1];
@@ -571,7 +572,8 @@ export function MasumeGrid({
         applicable.push({ row, col: ch.col, value });
       }
       if (applicable.length === 0) return;
-      if (applicable.some((ch) => ch.row >= data.length)) grewRowsRef.current = true;
+      const lastRow = applicable.reduce((m, ch) => Math.max(m, ch.row), -1);
+      if (lastRow >= data.length) grewRowsRef.current = lastRow + 1 - data.length;
       if (onCellChange) {
         for (const ch of applicable) onCellChange(ch.row, ch.col, ch.value);
       }
@@ -580,6 +582,9 @@ export function MasumeGrid({
         const copiedRows = new Set<number>();
         for (const ch of applicable) {
           if (!copiedRows.has(ch.row)) {
+            // A write past the end must not leave holes behind it: a paste can
+            // skip rows whose pasted cells were all empty (those are no-ops).
+            while (next.length < ch.row) next.push([]);
             next[ch.row] = (next[ch.row] ?? []).slice();
             copiedRows.add(ch.row);
           }
@@ -917,9 +922,9 @@ export function MasumeGrid({
   const moveActive = (row: number, col: number, opts?: { extend?: boolean }) => {
     if (rowCount === 0 || colCount === 0) return;
     // Enter/Tab on a just-filled blank row must land on the blank row that
-    // the pending `onChange` is adding, one past the row count of this render.
-    const maxRow = rowCount - 1 + (grewRowsRef.current ? 1 : 0);
-    grewRowsRef.current = false;
+    // the pending `onChange` is adding, past the row count of this render.
+    const maxRow = rowCount - 1 + grewRowsRef.current;
+    grewRowsRef.current = 0;
     const pos = { row: clamp(row, 0, maxRow), col: clamp(col, 0, colCount - 1) };
     if (opts?.extend) setSelection((sel) => setLastFocus(sel, pos));
     else setSelection([{ anchor: pos, focus: pos }]);
@@ -1008,8 +1013,12 @@ export function MasumeGrid({
       outH = selH;
       outW = selW;
     }
-    outH = Math.min(outH, rowCount - nr.top);
-    outW = Math.min(outW, colCount - nr.left);
+    // With the trailing blank row on, a paste running past the last row grows
+    // `data` instead of being cut off (as in Excel). Columns can only grow
+    // when they are derived from the data: an explicit `columns` array has no
+    // definition to render the extra cells with, so it still clips.
+    if (!hasBlankRow) outH = Math.min(outH, rowCount - nr.top);
+    if (!hasBlankRow || columns) outW = Math.min(outW, colCount - nr.left);
     const changes: CellChange[] = [];
     for (let dr = 0; dr < outH; dr++) {
       for (let dc = 0; dc < outW; dc++) {
@@ -1925,7 +1934,7 @@ export function MasumeGrid({
           >
             {dropdownOptions.map((o, i) => (
               <div
-                key={`${o.value} ${i}`}
+                key={`${o.value}\u0000${i}`}
                 role="option"
                 aria-selected={i === dropdownIndex}
                 className={'masume-grid-option' + (i === dropdownIndex ? ' masume-grid-option--hi' : '')}

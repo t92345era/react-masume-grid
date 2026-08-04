@@ -66,7 +66,7 @@ When `columns` is omitted, the column count is derived from `data` and headers s
 | `onSortChange` | `(sort: SortState \| null) => void` | — | Called on every header-click sort change (`null` = cleared) |
 | `onFilterChange` | `(filters: FilterState) => void` | — | Called on every filter change, with the full state (`{}` = no filters) |
 | `getCellProps` | `(row, col, value) => CellProps` | — | Per-cell overrides: `{ readOnly?, className?, style? }`. See [Per-cell overrides](#per-cell-overrides) |
-| `appendBlankRow` | `boolean` | `false` | Show a trailing blank row for entering new rows. See [Trailing blank row](#trailing-blank-row) |
+| `appendBlankRow` | `boolean` | `false` | Show a trailing blank row for entering new rows, and grow the data on a paste that runs past the last row. See [Trailing blank row](#trailing-blank-row) |
 | `showRowNumbers` | `boolean` | `true` | Show the row-number column |
 | `showHeader` | `boolean` | `true` | Show the header row |
 | `readOnly` | `boolean` | `false` | Disallow editing (selection & copy still work) |
@@ -116,6 +116,8 @@ Column widths are the one uncontrolled exception — widths set by dragging are 
 - `data` is **not** modified to make room for it — the row only exists in the rendering. Committing a value there calls `onChange` with an array one row longer, and `onCellChange` with `row === data.length`. Once your state updates, a fresh blank row appears below it.
 - The row is exactly one row: it never grows until it is filled, and clearing it again (Delete, or committing an empty value) does not create a row.
 - Enter or Tab on the last cell of the blank row lands on the newly created row's successor, so continuous data entry works.
+- **Pasting past the last row grows the data** instead of clipping at it: paste 200 rows into a 3-row grid and `onChange` receives 200 rows, with a fresh blank row below them. Rows the paste added always go to the *end* of `data`, including while the grid is sorted or filtered. Pasted rows that are entirely empty create no cells, so a block with trailing blank lines does not pad the data with them.
+- Pasting past the last **column** grows rows the same way when `columns` is omitted (the column count then follows the longest row). With an explicit `columns` array there is no definition — type, width, header — for the extra cells, so the paste still clips at the last column.
 - Ignored when the grid is `readOnly`. Select-all (Ctrl(⌘)+A) skips the blank row so copying does not emit a stray empty line — it can still be selected and copied on its own.
 - `template` columns are not rendered in the blank row (there is no data record yet for a row action or a derived value to refer to). `getCellProps` **is** called for it with `row === data.length` and `value === ''`, so column locking and styling still apply.
 - Its row number and row element carry `masume-grid-rownum--blank` / `masume-grid-row--blank` for custom styling.
@@ -389,7 +391,7 @@ Published on [npm](https://www.npmjs.com/package/react-masume-grid).
 ### 0.5.0 — 2026-07-27
 
 - **Header-click sorting** (`sortable`, `defaultSort`, `onSortChange`, `ColumnDef.sortable`, `ColumnDef.compare`): ascending → descending → unsorted per click, sorting the view without reordering `data`. Type-aware default ordering, empty cells last, always-visible right-edge indicator, `aria-sort`. See [Sorting](#sorting)
-- **Trailing blank row** (`appendBlankRow`): a spreadsheet-style "new record" row that turns into a real row once a value is committed. See [Trailing blank row](#trailing-blank-row)
+- **Trailing blank row** (`appendBlankRow`): a spreadsheet-style "new record" row that turns into a real row once a value is committed, and pasting past the last row grows the data. See [Trailing blank row](#trailing-blank-row)
 - `onSelectionChange` now receives a second `viewToData` argument mapping display rows to data rows while sorted (`null` when unsorted)
 
 ### 0.4.0 — 2026-07-25
