@@ -8,7 +8,7 @@ A lightweight, generic React spreadsheet component. React is the only dependency
 - **Cell types** — text / number (normalizes full-width digits and commas) / select (dropdown backed by master data, stores codes while displaying labels) / date (calendar input, normalizes pasted dates in common Japanese formats) / checkbox (click or Space to toggle) / template (render any component per cell). Headers can be templated too (`headerTemplate`)
 - **Cell editing** — start editing by double-click, F2, or just typing. **Full IME support**: with a Japanese IME on, pressing "A" opens the editor and types 「あ」 right into the cell
 - **Range selection** — mouse drag, extend with Shift+click / Shift+arrows, add multiple ranges with Ctrl(⌘)+click. Click row/column headers to select whole rows/columns, the top-left corner to select all
-- **Copy & paste** — Ctrl(⌘)+C / X / V. TSV format interoperable with Excel and Google Sheets (handles cells containing newlines, tabs and quotes; tiles single-cell paste across a selection)
+- **Copy & paste** — Ctrl(⌘)+C / X / V. TSV format interoperable with Excel and Google Sheets (handles cells containing newlines, tabs and quotes; tiles single-cell paste across a selection; grows the data when a paste runs past the last row, with `appendBlankRow` on)
 - **Accessible** — ARIA grid semantics (`grid` / `row` / `gridcell` roles, 1-based row/column indices that survive row virtualization, selection and read-only states) so screen readers can follow the grid
 
 ## Demo
@@ -373,6 +373,11 @@ npm run build      # library build into dist/ (ESM + CJS + d.ts + CSS)
 ## Changelog
 
 Published on [npm](https://www.npmjs.com/package/react-masume-grid).
+
+### 0.8.0 — 2026-08-05
+
+- **A paste that runs past the last row now grows the data** when `appendBlankRow` is on, instead of being clipped at the trailing blank row: paste 200 rows into a 3-row grid and `onChange` receives 200 rows, with a fresh blank row below them. The rows the paste adds always land at the *end* of `data`, including while the grid is sorted or filtered. Rows widen the same way when `columns` is omitted (the column count then follows the longest row); with an explicit `columns` array there is no definition — type, width, header — for the extra cells, so a paste still clips at the last column. See [Trailing blank row](#trailing-blank-row)
+- ⚠️ **Breaking**: with `appendBlankRow`, a paste no longer stops at the last row. Grids that relied on that clipping to bound their data need to bound it themselves. Without `appendBlankRow` nothing changes
 
 ### 0.7.1 — 2026-07-30
 
