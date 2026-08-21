@@ -1,16 +1,22 @@
 {
   "name": "react-masume-grid",
   "version": "0.8.0",
-  "description": "MasumeGrid (マス目) — a lightweight React spreadsheet component with IME-friendly cell editing, cell types (text/number/select/date/checkbox), range selection, and Excel-compatible clipboard support.",
+  "description": "A lightweight React spreadsheet grid with Japanese IME-friendly cell editing, Excel-compatible clipboard, sorting, filtering, and row virtualization. React is the only dependency (~12.5KB gzipped).",
   "keywords": [
     "react",
+    "react-component",
     "spreadsheet",
     "grid",
     "datagrid",
+    "data-grid",
     "table",
+    "editable",
     "excel",
+    "clipboard",
+    "virtualized",
     "ime",
-    "japanese"
+    "japanese",
+    "japanese-input"
   ],
   "license": "MIT",
   "author": "t92345era",
