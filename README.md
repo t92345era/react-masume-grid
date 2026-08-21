@@ -1,8 +1,13 @@
 # MasumeGrid
 
-[日本語版 README はこちら](README.ja.md)
+[![npm version](https://img.shields.io/npm/v/react-masume-grid.svg)](https://www.npmjs.com/package/react-masume-grid)
+[![gzip size](https://deno.bundlejs.com/badge?q=react-masume-grid)](https://bundlejs.com/?q=react-masume-grid)
+[![types](https://img.shields.io/npm/types/react-masume-grid.svg)](https://www.npmjs.com/package/react-masume-grid)
+[![license](https://img.shields.io/npm/l/react-masume-grid.svg)](https://github.com/t92345era/react-masume-grid/blob/main/LICENSE)
 
-A lightweight, generic React spreadsheet component. React is the only dependency (~5KB gzipped).
+[日本語版 README はこちら](https://github.com/t92345era/react-masume-grid/blob/main/README.ja.md)
+
+A lightweight, generic React spreadsheet component. React is the only dependency (12.5KB JS + 1.8KB CSS, gzipped).
 
 - **Grid display** — toggleable row numbers and header, per-column widths, drag-to-resize columns, header-click sorting, Excel-style header filtering, optional trailing blank row for new entries, virtualized rows (smooth with tens of thousands of rows)
 - **Cell types** — text / number (normalizes full-width digits and commas) / select (dropdown backed by master data, stores codes while displaying labels) / date (calendar input, normalizes pasted dates in common Japanese formats) / checkbox (click or Space to toggle) / template (render any component per cell). Headers can be templated too (`headerTemplate`)
@@ -346,7 +351,7 @@ Override CSS variables to theme the grid.
 }
 ```
 
-See the top of [src/masume-grid.css](src/masume-grid.css) for the full list of variables.
+See the top of [src/masume-grid.css](https://github.com/t92345era/react-masume-grid/blob/main/src/masume-grid.css) for the full list of variables.
 
 ## How IME support works
 

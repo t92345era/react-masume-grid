@@ -1,8 +1,13 @@
 # MasumeGrid
 
-[English README is here](README.md)
+[![npm version](https://img.shields.io/npm/v/react-masume-grid.svg)](https://www.npmjs.com/package/react-masume-grid)
+[![gzip size](https://deno.bundlejs.com/badge?q=react-masume-grid)](https://bundlejs.com/?q=react-masume-grid)
+[![types](https://img.shields.io/npm/types/react-masume-grid.svg)](https://www.npmjs.com/package/react-masume-grid)
+[![license](https://img.shields.io/npm/l/react-masume-grid.svg)](https://github.com/t92345era/react-masume-grid/blob/main/LICENSE)
 
-軽量・汎用の React スプレッドシートコンポーネント。依存は React のみ（gzip 約 5KB）。
+[English README is here](https://github.com/t92345era/react-masume-grid/blob/main/README.md)
+
+軽量・汎用の React スプレッドシートコンポーネント。依存は React のみ（gzip で JS 約 12.5KB + CSS 約 1.8KB）。
 
 - **グリッド表示** — 行番号・ヘッダーの表示/非表示切り替え、列幅指定、ドラッグでの列幅リサイズ、ヘッダクリックによるソート、Excel 風のヘッダフィルタ、末尾の入力用空行、行の仮想化描画（数万行でも軽快）
 - **セル型** — 文字列 / 数値（全角・カンマ正規化）/ 選択肢（マスタデータのプルダウン、コード保存・ラベル表示）/ 日付（カレンダー入力、和式表記の貼り付け正規化）/ チェックボックス（クリック / Space でトグル）/ テンプレート（任意のコンポーネントをセルに描画）。ヘッダーも `headerTemplate` でテンプレート化できます
@@ -350,7 +355,7 @@ CSS 変数を上書きするだけでテーマを変更できます。
 }
 ```
 
-利用可能な変数は [src/masume-grid.css](src/masume-grid.css) 冒頭を参照してください。
+利用可能な変数は [src/masume-grid.css](https://github.com/t92345era/react-masume-grid/blob/main/src/masume-grid.css) 冒頭を参照してください。
 
 ## IME（日本語入力）対応の仕組み
 
