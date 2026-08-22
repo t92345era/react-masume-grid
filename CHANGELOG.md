@@ -4,6 +4,10 @@ Every released version of [react-masume-grid](https://www.npmjs.com/package/reac
 
 [日本語版はこちら](https://github.com/t92345era/react-masume-grid/blob/main/CHANGELOG.ja.md)
 
+## 0.8.2 — 2026-08-22
+
+- Documentation only — no change to the library. The usage snippet now imports `react-masume-grid/styles.css` outright: the built package never references its own stylesheet, so "CSS loads automatically" was wrong in every bundler rather than only some. The `getCellProps` and theming examples are also corrected — a single class name such as `.cell-error` ties with the library's own `.masume-grid-cell` / `.masume-grid`, leaving stylesheet order to decide whether the rule applies at all
+
 ## 0.8.1 — 2026-08-21
 
 - Documentation and package metadata only — no change to the library. The README gained badges and a corrected bundle size (12.5KB of JS plus 1.8KB of CSS, gzipped; the previous "~5KB" dated from 0.1.0), links that survive being read on the npm page, and a sharper npm description and keyword list

@@ -4,6 +4,10 @@
 
 [English version here](https://github.com/t92345era/react-masume-grid/blob/main/CHANGELOG.md)
 
+## 0.8.2 — 2026-08-22
+
+- ドキュメントのみの変更で、ライブラリの挙動は変わりません。使い方のコード例が `react-masume-grid/styles.css` を明示的に import する形になりました（配布物の JS は自前の CSS を参照していないため、「CSS は自動で読み込まれます」という記述は一部のバンドラーどころか常に誤りでした）。`getCellProps` とテーマの例も修正しています — `.cell-error` のようにクラス1つで書くと、ライブラリ側の `.masume-grid-cell` / `.masume-grid` と詳細度が並び、CSS の読み込み順によってはルールが効きません
+
 ## 0.8.1 — 2026-08-21
 
 - ドキュメントとパッケージメタデータのみの変更で、ライブラリの挙動は変わりません。README にバッジを追加し、サイズ表記を実測値（gzip で JS 約 12.5KB + CSS 約 1.8KB。従来の「約 5KB」は 0.1.0 当時のものでした）に修正、npm ページで切れないリンクに変更、npm の description と keywords を整理しました
