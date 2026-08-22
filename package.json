@@ -50,6 +50,7 @@
     "dev": "vite",
     "build": "vite build",
     "build:demo": "vite build --mode demo",
+    "build:ogp": "node scripts/build-ogp.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

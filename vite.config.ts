@@ -20,6 +20,8 @@ export default defineConfig(({ mode }) => {
       react(),
       dts({ include: ['src'], exclude: ['**/*.test.*'] }),
     ],
+    // public/ はデモサイト用の資材（OGP 画像）なので、配布物には入れない
+    publicDir: false,
     build: {
       lib: {
         entry: 'src/index.ts',
