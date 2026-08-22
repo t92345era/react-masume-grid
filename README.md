@@ -9,6 +9,11 @@
 
 A lightweight, generic React spreadsheet component. React is the only dependency (12.5KB JS + 1.8KB CSS, gzipped).
 
+![With a Japanese IME on, pressing "A" opens the cell editor and types あ straight into it; the Enter that confirms the conversion does not move the cell](https://raw.githubusercontent.com/t92345era/react-masume-grid/main/public/ime.gif)
+
+*With a Japanese IME on, pressing "A" opens the editor and types 「あ」 right into the cell — and the Enter that
+confirms the conversion is not mistaken for cell navigation. Recorded from the [demo](https://t92345era.github.io/react-masume-grid/#/en/guide/ime), which you can try yourself.*
+
 - **Grid display** — toggleable row numbers and header, per-column widths, drag-to-resize columns, header-click sorting, Excel-style header filtering, optional trailing blank row for new entries, virtualized rows (smooth with tens of thousands of rows)
 - **Cell types** — text / number (normalizes full-width digits and commas) / select (dropdown backed by master data, stores codes while displaying labels) / date (calendar input, normalizes pasted dates in common Japanese formats) / checkbox (click or Space to toggle) / template (render any component per cell). Headers can be templated too (`headerTemplate`)
 - **Cell editing** — start editing by double-click, F2, or just typing. **Full IME support**: with a Japanese IME on, pressing "A" opens the editor and types 「あ」 right into the cell

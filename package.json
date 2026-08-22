@@ -51,6 +51,7 @@
     "build": "vite build",
     "build:demo": "vite build --mode demo",
     "build:ogp": "node scripts/build-ogp.mjs",
+    "build:gif": "node scripts/build-ime-gif.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
