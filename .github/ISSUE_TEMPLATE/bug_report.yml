@@ -1,0 +1,80 @@
+name: Bug report
+description: Something in the grid behaves differently than documented
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. Japanese is welcome — 日本語でも構いません。
+
+        The demo has one sample per feature, so it is worth checking whether the
+        problem reproduces there: https://t92345era.github.io/react-masume-grid/
+
+  - type: input
+    id: version
+    attributes:
+      label: Version / バージョン
+      description: The `react-masume-grid` version you are using.
+      placeholder: "0.8.2"
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Browser and OS / ブラウザと OS
+      description: |
+        Include the IME if the problem involves text input — Safari, Chrome and the
+        Windows and macOS IMEs order their composition events differently, so this
+        is usually the first thing that has to be pinned down.
+        日本語入力に関わる不具合では、IME の種類も書いてください。
+      placeholder: "Safari 18.2 / macOS 15.2 / Japanese IME (macOS built-in)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: demo
+    attributes:
+      label: Does it reproduce on the demo site? / デモサイトで再現しますか
+      options:
+        - "Yes — it reproduces on the demo"
+        - "No — only in my own app"
+        - "Not applicable / haven't checked"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce / 再現手順
+      description: What you did, in the order you did it.
+      placeholder: |
+        1. Select the cell at row 2, column 1
+        2. Switch the IME on and press "A"
+        3. Press Enter to confirm the conversion
+    validations:
+      required: true
+
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected vs actual / 期待した動作と実際の動作
+      placeholder: |
+        Expected: the composition is confirmed and the cell stays selected
+        Actual: the selection moves down one row
+    validations:
+      required: true
+
+  - type: textarea
+    id: code
+    attributes:
+      label: Code / コード
+      description: The props you passed, trimmed to the smallest case that still shows the problem.
+      render: tsx
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else / その他
+      description: Screenshots, recordings, or notes that might help.

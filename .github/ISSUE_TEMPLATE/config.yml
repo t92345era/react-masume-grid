@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question about usage / 使い方の質問
+    url: https://github.com/t92345era/react-masume-grid/discussions
+    about: Ask in Discussions — questions are answered there rather than in issues.
+  - name: Demo site / デモサイト
+    url: https://t92345era.github.io/react-masume-grid/
+    about: One runnable sample per feature, with its source. Worth a look before reporting.

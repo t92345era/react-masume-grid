@@ -1,0 +1,39 @@
+name: Feature request
+description: Suggest a capability the grid does not have yet
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Japanese is welcome — 日本語でも構いません。
+
+        This library deliberately stays small (React is its only dependency), so the
+        useful question is usually not "can it do X" but "what is the screen you are
+        trying to build". Describing that gives the most room to find an answer,
+        including one that needs no new API.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to build? / 何を作ろうとしていますか
+      description: The screen or workflow, and where the grid currently gets in the way.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would help? / どうなると解決しますか
+      description: A prop, a behavior, a documented recipe — whatever shape you have in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What have you tried? / 試したこと
+      description: |
+        `template` cells, `getCellProps` and the `onChange`-based design cover a lot of
+        cases from the host app's side. Knowing what you already tried says a lot about
+        whether this belongs in the library.
