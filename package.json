@@ -66,6 +66,7 @@
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^4.5.0",
     "jsdom": "^26.1.0",
+    "prism-react-renderer": "^2.4.1",
     "puppeteer-core": "^25.3.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
