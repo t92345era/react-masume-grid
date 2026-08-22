@@ -49,6 +49,10 @@ function forDisplay(source: string): string {
     .replace(/^import type \{ ExampleMeta \}.*\n/m, '')
     .replace(/^export const meta: ExampleMeta = \{[\s\S]*?^\};\n\n?/m, '')
     .replace(/'\.\.\/\.\.\/\.\.\/src'/g, "'react-masume-grid'")
+    .replace(
+      /^(import \{[^}]*\} from 'react-masume-grid';)$/m,
+      "$1\nimport 'react-masume-grid/styles.css';",
+    )
     .trim();
 }
 

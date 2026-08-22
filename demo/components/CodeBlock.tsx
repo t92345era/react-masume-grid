@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Highlight, themes } from 'prism-react-renderer';
+import { openInStackBlitz } from './stackblitz';
 
 /** これを超える行数のサンプルは折りたたんで表示する */
 const COLLAPSE_OVER = 28;
 
-export default function CodeBlock({ code }: { code: string }) {
+export default function CodeBlock({ code, title }: { code: string; title: string }) {
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const lines = code.split('\n').length;
@@ -24,6 +25,13 @@ export default function CodeBlock({ code }: { code: string }) {
         <span className="code-lines">{lines} 行</span>
         <button type="button" className="code-copy" onClick={copy}>
           {copied ? 'コピーしました' : 'コピー'}
+        </button>
+        <button
+          type="button"
+          className="code-copy"
+          onClick={() => openInStackBlitz(code, title)}
+        >
+          StackBlitz で開く ↗
         </button>
       </div>
       <div className={'code-body' + (collapsed ? ' code-body--collapsed' : '')}>

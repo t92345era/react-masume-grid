@@ -17,7 +17,7 @@ export default function SamplePane({ example }: { example: Example }) {
       <div className="pane-demo">
         <Component />
       </div>
-      <CodeBlock code={source} />
+      <CodeBlock code={source} title={meta.title} />
     </article>
   );
 }
