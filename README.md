@@ -31,8 +31,7 @@ npm install react-masume-grid
 ```tsx
 import { useState } from 'react';
 import { MasumeGrid } from 'react-masume-grid';
-// CSS loads automatically when you import the library.
-// Depending on your bundler you may need: import 'react-masume-grid/styles.css';
+import 'react-masume-grid/styles.css'; // required — the package ships the CSS separately
 
 function App() {
   const [data, setData] = useState<string[][]>([
@@ -108,6 +107,7 @@ Column widths are the one uncontrolled exception — widths set by dragging are 
 
 - `readOnly` applies to edits, paste and delete alike (on top of the grid-level and column-level `readOnly`).
 - `className` is appended to the cell element; `style` is merged in (the grid-managed `width`/`height` cannot be overridden).
+- A rule written as `.cell-error` only *ties* with the library's own `.masume-grid-cell`, so whichever stylesheet loads last wins — properties the grid already sets (`background`, `color`, …) may not take effect. Qualify the selector as `.masume-grid-cell.cell-error`, or pass `style` instead, which always wins.
 - It is called for every visible cell on each render — keep it cheap (a lookup, not a computation).
 
 ### Trailing blank row
@@ -344,7 +344,9 @@ Notes:
 Override CSS variables to theme the grid.
 
 ```css
-.my-grid {
+/* Qualified with .masume-grid: a bare .my-grid ties with the library's own
+   rule, and then the load order of the two stylesheets decides the winner. */
+.masume-grid.my-grid {
   --masume-grid-accent: #0f9d58;
   --masume-grid-sel-bg: rgba(15, 157, 88, 0.12);
   --masume-grid-header-bg: #f0f4f1;

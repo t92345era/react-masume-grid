@@ -31,8 +31,7 @@ npm install react-masume-grid
 ```tsx
 import { useState } from 'react';
 import { MasumeGrid } from 'react-masume-grid';
-// ライブラリを直接 import した場合、CSS は自動で読み込まれます。
-// バンドラー設定によっては明示的に: import 'react-masume-grid/styles.css';
+import 'react-masume-grid/styles.css'; // 必須。CSS はパッケージに別ファイルで入っています
 
 function App() {
   const [data, setData] = useState<string[][]>([
@@ -108,6 +107,7 @@ function App() {
 
 - `readOnly` は編集・貼り付け・Delete のすべてに適用されます（グリッド全体・列単位の `readOnly` に追加する形）。
 - `className` はセル要素に追記され、`style` はマージされます（グリッドが管理する `width` / `height` は上書きできません）。
+- `.cell-error` のようにクラス1つで書くと、ライブラリ側の `.masume-grid-cell` と詳細度が並び、後から読み込まれた CSS が勝ちます。グリッドが既に指定しているプロパティ（`background` / `color` など）は効かないことがあるため、`.masume-grid-cell.cell-error` のように書くか、確実に効く `style` を使ってください。
 - 描画のたびに画面内の全セルで呼ばれるため、軽い処理（ルックアップ程度）にしてください。
 
 ### 末尾の空行
@@ -348,7 +348,9 @@ const columns = useMemo<ColumnDef[]>(
 CSS 変数を上書きするだけでテーマを変更できます。
 
 ```css
-.my-grid {
+/* .masume-grid を併記しています。.my-grid だけではライブラリ側の指定と
+   詳細度が並び、2つの CSS の読み込み順で勝ち負けが決まってしまいます。 */
+.masume-grid.my-grid {
   --masume-grid-accent: #0f9d58;
   --masume-grid-sel-bg: rgba(15, 157, 88, 0.12);
   --masume-grid-header-bg: #f0f4f1;
