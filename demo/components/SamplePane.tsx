@@ -1,23 +1,30 @@
-import { DOCS_BASE, type Example } from '../registry';
+import { UI, useLang } from '../i18n';
+import { docsUrl, type Example } from '../registry';
 import CodeBlock from './CodeBlock';
 
 export default function SamplePane({ example }: { example: Example }) {
+  const lang = useLang();
+  const ui = UI[lang];
   const { meta, Component, source } = example;
+  const heading = meta.docs?.[lang];
+
   return (
     <article className="pane">
-      <h1 className="pane-title">{meta.title}</h1>
-      <p className="pane-desc">{meta.description}</p>
-      {meta.docs && (
+      <h1 className="pane-title">{meta.title[lang]}</h1>
+      <p className="pane-desc">{meta.description[lang]}</p>
+      {heading && (
         <p className="pane-docs">
-          <a href={DOCS_BASE + encodeURIComponent(meta.docs)} target="_blank" rel="noreferrer">
-            README「{meta.docs}」を読む ↗
+          <a href={docsUrl(heading, lang)} target="_blank" rel="noreferrer">
+            {lang === 'ja'
+              ? `${ui.docsPrefix}「${heading}」${ui.docsSuffix} ↗`
+              : `${ui.docsPrefix} “${heading}” ${ui.docsSuffix} ↗`}
           </a>
         </p>
       )}
       <div className="pane-demo">
         <Component />
       </div>
-      <CodeBlock code={source} title={meta.title} />
+      <CodeBlock code={source} title={meta.title[lang]} />
     </article>
   );
 }

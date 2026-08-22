@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Highlight, themes } from 'prism-react-renderer';
 import { openInStackBlitz } from './stackblitz';
+import { UI, useLang } from '../i18n';
 
 /** これを超える行数のサンプルは折りたたんで表示する */
 const COLLAPSE_OVER = 28;
 
 export default function CodeBlock({ code, title }: { code: string; title: string }) {
+  const ui = UI[useLang()];
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const lines = code.split('\n').length;
@@ -22,16 +24,18 @@ export default function CodeBlock({ code, title }: { code: string; title: string
     <section className="code">
       <div className="code-bar">
         <span className="code-lang">tsx</span>
-        <span className="code-lines">{lines} 行</span>
+        <span className="code-lines">
+          {lines} {ui.lines}
+        </span>
         <button type="button" className="code-copy" onClick={copy}>
-          {copied ? 'コピーしました' : 'コピー'}
+          {copied ? ui.copied : ui.copy}
         </button>
         <button
           type="button"
           className="code-copy"
           onClick={() => openInStackBlitz(code, title)}
         >
-          StackBlitz で開く ↗
+          {ui.stackblitz} ↗
         </button>
       </div>
       <div className={'code-body' + (collapsed ? ' code-body--collapsed' : '')}>
@@ -55,7 +59,7 @@ export default function CodeBlock({ code, title }: { code: string; title: string
       </div>
       {lines > COLLAPSE_OVER && (
         <button type="button" className="code-more" onClick={() => setExpanded((v) => !v)}>
-          {expanded ? '折りたたむ' : `全体を表示（${lines} 行）`}
+          {expanded ? ui.collapse : `${ui.expand}（${lines} ${ui.lines}）`}
         </button>
       )}
     </section>

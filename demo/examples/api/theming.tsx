@@ -3,21 +3,39 @@ import { MasumeGrid } from '../../../src';
 import type { ExampleMeta } from '../../registry';
 
 export const meta: ExampleMeta = {
-  title: 'スタイルのカスタマイズ',
-  description:
-    'className を付けて CSS 変数を上書きすればテーマを変えられます。アクセントカラー'
-    + '（--masume-grid-accent）は選択枠だけでなく、コピー範囲の点線・ソート矢印・絞り込み中のじょうごにも使われます。'
-    + 'セレクタは .masume-grid.my-theme のように書いてください — .my-theme だけだと'
-    + 'ライブラリ側の .masume-grid と詳細度が並び、CSS の読み込み順で勝ち負けが変わってしまいます。',
+  title: { ja: 'スタイルのカスタマイズ', en: 'Theming' },
+  description: {
+    ja:
+      'className を付けて CSS 変数を上書きすればテーマを変えられます。アクセントカラー'
+      + '（--masume-grid-accent）は選択枠だけでなく、コピー範囲の点線・ソート矢印・絞り込み中のじょうごにも使われます。'
+      + 'セレクタは .masume-grid.my-theme のように書いてください — .my-theme だけだと'
+      + 'ライブラリ側の .masume-grid と詳細度が並び、CSS の読み込み順で勝ち負けが変わってしまいます。',
+    en:
+      'Add a className and override the CSS variables to theme the grid. The accent '
+      + '(--masume-grid-accent) colors more than the selection outline: the marching ants on a copied '
+      + 'range, the sort indicator and the funnel of an active filter all follow it. Write the selector '
+      + 'as .masume-grid.my-theme — a lone .my-theme ties with the library\'s own rule, and then '
+      + 'stylesheet order decides the winner.',
+  },
   order: 14,
-  docs: 'スタイルのカスタマイズ',
+  docs: { ja: 'スタイルのカスタマイズ', en: 'Styling' },
 };
 
-const THEMES = [
-  { id: '', label: '既定' },
-  { id: 'ex-theme-green', label: 'グリーン' },
-  { id: 'ex-theme-dark', label: 'ダーク' },
-];
+// Demo-site language switch — not needed when you use the library
+const TEXT = {
+  ja: {
+    columns: ['品名', '単価'],
+    rows: [['ノート', '120'], ['ボールペン', '110'], ['クリアファイル', '80']],
+    themes: ['既定', 'グリーン', 'ダーク'],
+  },
+  en: {
+    columns: ['Item', 'Price'],
+    rows: [['Notebook', '120'], ['Ballpoint pen', '110'], ['Clear folder', '80']],
+    themes: ['Default', 'Green', 'Dark'],
+  },
+};
+
+const THEME_CLASSES = ['', 'ex-theme-green', 'ex-theme-dark'];
 
 /*
 .masume-grid.ex-theme-green {
@@ -29,24 +47,21 @@ const THEMES = [
 */
 
 export default function Theming() {
-  const [data, setData] = useState<string[][]>([
-    ['ノート', '120'],
-    ['ボールペン', '110'],
-    ['クリアファイル', '80'],
-  ]);
+  const t = TEXT[document.documentElement.lang === 'en' ? 'en' : 'ja'];
+  const [data, setData] = useState<string[][]>(t.rows);
   const [theme, setTheme] = useState('ex-theme-green');
 
   return (
     <>
       <div className="ex-toolbar">
-        {THEMES.map((t) => (
+        {THEME_CLASSES.map((id, i) => (
           <button
-            key={t.id}
+            key={id}
             type="button"
-            className={'ex-btn' + (t.id === theme ? ' ex-btn--on' : '')}
-            onClick={() => setTheme(t.id)}
+            className={'ex-btn' + (id === theme ? ' ex-btn--on' : '')}
+            onClick={() => setTheme(id)}
           >
-            {t.label}
+            {t.themes[i]}
           </button>
         ))}
       </div>
@@ -54,8 +69,8 @@ export default function Theming() {
         data={data}
         onChange={setData}
         columns={[
-          { title: '品名', width: 180 },
-          { title: '単価', width: 100, type: 'number' },
+          { title: t.columns[0], width: 180 },
+          { title: t.columns[1], width: 100, type: 'number' },
         ]}
         className={theme}
         sortable

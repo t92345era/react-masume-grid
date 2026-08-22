@@ -567,3 +567,27 @@ body {
   --masume-grid-sel-bg: rgba(90, 160, 255, 0.18);
   --masume-grid-accent: #5aa0ff;
 }
+
+/* 言語切り替え */
+.app-langs {
+  display: flex;
+  gap: 4px;
+  margin-left: 20px;
+}
+
+.app-lang {
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.app-lang--on {
+  border-color: var(--accent);
+  background: #e2ebf8;
+  color: var(--accent);
+  font-weight: 700;
+}

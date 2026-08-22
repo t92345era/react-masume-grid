@@ -1,15 +1,16 @@
 import type { ComponentType } from 'react';
+import type { Lang, Text } from './i18n';
 
 export type Group = 'guide' | 'usecase' | 'api';
 
 /** 各サンプルが `meta` という名前でエクスポートする情報 */
 export type ExampleMeta = {
-  title: string;
-  description: string;
+  title: Text;
+  description: Text;
   /** グループ内の並び順（小さいほど上） */
   order?: number;
-  /** README.ja.md の見出し。指定すると解説へのリンクが出る */
-  docs?: string;
+  /** README の見出し（言語ごと）。指定すると解説へのリンクが出る */
+  docs?: Text;
 };
 
 export type Example = {
@@ -21,14 +22,25 @@ export type Example = {
   source: string;
 };
 
-export const GROUPS: { key: Group; label: string }[] = [
-  { key: 'guide', label: '使い方' },
-  { key: 'usecase', label: 'ユースケース' },
-  { key: 'api', label: 'API' },
+export const GROUPS: { key: Group; uiKey: string }[] = [
+  { key: 'guide', uiKey: 'groupGuide' },
+  { key: 'usecase', uiKey: 'groupUsecase' },
+  { key: 'api', uiKey: 'groupApi' },
 ];
 
-export const DOCS_BASE =
-  'https://github.com/t92345era/react-masume-grid/blob/main/README.ja.md#';
+const REPO = 'https://github.com/t92345era/react-masume-grid/blob/main';
+
+/** README の見出しから、その節へのリンクを組み立てる */
+export function docsUrl(heading: string, lang: Lang): string {
+  if (lang === 'ja') return `${REPO}/README.ja.md#${encodeURIComponent(heading)}`;
+  // GitHub の見出しアンカーは、小文字化して記号を落とし、空白をハイフンにしたもの
+  const slug = heading
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-');
+  return `${REPO}/README.md#${slug}`;
+}
 
 // examples/<group>/<id>.tsx を置くだけで登録される。両方の glob が同じパスを
 // キーにするので、コンポーネントとそのソースが取り違えられることはない
@@ -73,7 +85,7 @@ export const examples: Example[] = Object.entries(modules)
     (a, b) =>
       groupIndex(a.group) - groupIndex(b.group) ||
       (a.meta.order ?? 999) - (b.meta.order ?? 999) ||
-      a.meta.title.localeCompare(b.meta.title, 'ja'),
+      a.meta.title.ja.localeCompare(b.meta.title.ja, 'ja'),
   );
 
 export const routeOf = (e: Example) => `${e.group}/${e.id}`;

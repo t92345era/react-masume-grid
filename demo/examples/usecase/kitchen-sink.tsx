@@ -4,13 +4,20 @@ import type { ColumnDef, FilterTexts, NormalizedRange } from '../../../src';
 import type { ExampleMeta } from '../../registry';
 
 export const meta: ExampleMeta = {
-  title: '全機能デモ',
-  description:
-    'このライブラリのほぼすべての機能を1つのグリッドに載せた総合デモです。'
-    + 'チェックボックスで各オプションを切り替えながら挙動を確かめられます。'
-    + '個々の機能を単体で見たい場合は、サイドバーの各サンプルを参照してください。',
+  title: { ja: '全機能デモ', en: 'Everything at once' },
+  description: {
+    ja:
+      'このライブラリのほぼすべての機能を1つのグリッドに載せた総合デモです。'
+      + 'チェックボックスで各オプションを切り替えながら挙動を確かめられます。'
+      + '個々の機能を単体で見たい場合は、サイドバーの各サンプルを参照してください。'
+      + 'このサンプルだけは日本語の業務データのまま表示しています。',
+    en:
+      'Nearly every feature of the library on a single grid, with checkboxes to toggle the options and '
+      + 'watch what changes. See the individual samples in the sidebar for one feature at a time. '
+      + 'This one sample keeps its Japanese business data, which is what the grid was built for.',
+  },
   order: 90,
-  docs: 'Props',
+  docs: { ja: 'Props', en: 'Props' },
 };
 
 // フィルタパネルの文言（既定は英語）
