@@ -8,7 +8,9 @@ import puppeteer from 'puppeteer-core';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = resolve(here, 'ogp.html');
+// デモサイト用は 2倍解像度、GitHub の Social preview 用は 1280×640 ちょうど
 const out = resolve(here, '..', 'public', 'ogp.png');
+const outGithub = resolve(here, '..', 'public', 'ogp-github.png');
 
 const CHROME =
   process.env.CHROME_PATH ??
@@ -16,9 +18,15 @@ const CHROME =
 
 const browser = await puppeteer.launch({ executablePath: CHROME, headless: 'new' });
 const page = await browser.newPage();
-await page.setViewport({ width: 1280, height: 640, deviceScaleFactor: 2 });
-await page.goto(`file://${source}`, { waitUntil: 'networkidle0' });
-await page.screenshot({ path: out });
-await browser.close();
 
-console.log(`wrote ${out}`);
+for (const [path, deviceScaleFactor] of [
+  [out, 2],
+  [outGithub, 1],
+]) {
+  await page.setViewport({ width: 1280, height: 640, deviceScaleFactor });
+  await page.goto(`file://${source}`, { waitUntil: 'networkidle0' });
+  await page.screenshot({ path });
+  console.log(`wrote ${path}`);
+}
+
+await browser.close();
